@@ -4,9 +4,7 @@ import os
 import numpy as np
 import h5py
 
-from jet_tools.src.ReadHepmc import Hepmc
-from jet_tools.src import FormJets, Components, TrueTag
-
+from jet_tools.src import FormJets, Components, TrueTag, ReadHepmc
 
 #------------------------------- READ IN HEPMC -------------------------------#
 NUM_EVENTS = int(1e+2)
@@ -70,10 +68,10 @@ print('Writing to HDF5 file in ' + str(num_chunks) + ' chunks.')
 
 #------------------------------- READ IN HEPMC -------------------------------#
 for chunk_idx in range(num_chunks):
-    hep_data = Hepmc(in_fname,
-                     start=start_idxs[chunk_idx],
-                     stop=stop_idxs[chunk_idx],
-                    )
+    hep_data = ReadHepmc.Hepmc(
+            in_fname,
+            start=start_idxs[chunk_idx],
+            stop=stop_idxs[chunk_idx])
 
     # calculate higher level (HL) data
     Components.add_all(hep_data, inc_mass=True)
@@ -106,6 +104,7 @@ for chunk_idx in range(num_chunks):
                 include_antiparticles=False)
 
         lead_jet_idx = TrueTag.allocate(hep_data, JET_NAME, tag_idx, dR**2)
+
         jet_pcls_idx = getattr(hep_data, JET_NAME + "_Child1")[lead_jet_idx][0]
         constit_mask = jet_pcls_idx == -1
         num_jet_constits = np.sum(constit_mask)

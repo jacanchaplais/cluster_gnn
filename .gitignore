@@ -87,3 +87,6 @@ target/
 
 # Mypy cache
 .mypy_cache/
+
+job-logs/
+slurm-*.out
