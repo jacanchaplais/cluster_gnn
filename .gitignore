@@ -90,3 +90,5 @@ target/
 
 job-logs/
 slurm-*.out
+
+Session.vim
