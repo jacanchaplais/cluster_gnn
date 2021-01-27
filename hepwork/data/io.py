@@ -1,3 +1,22 @@
+"""Provides functions to read, format, and write data taken from
+MadGraph + Pythia output files.
+
+
+Classes:
+HepData: object to parse, process, and format data from HepMC files.
+    .get_jet_constits():
+        returns calorimeter data of leading jet from each event
+
+Functions:
+jets_from_raw():
+    applies HepData.get_jet_constits() to whole file, returning data
+pcls_to_file():
+    saves dataframe containing particle data from above to HDF5
+pcls_from_file():
+    returns data read from stored HDF5 files
+"""
+
+
 import numpy as np
 import pandas as pd
 import h5py
@@ -5,7 +24,7 @@ import h5py
 from jet_tools.src import ReadHepmc, Components, FormJets, TrueTag
 
 
-def jets_from_raw(in_fname, num_evts, stride=1000, tag_mcpid=[6]):
+def jets_from_raw(in_fname, num_evts, tag_mcpid=[6], stride=1000):
     """Returns a pandas dataframe of jet constituent calorimeter info.
     
     Keyword arguments:
@@ -13,10 +32,8 @@ def jets_from_raw(in_fname, num_evts, stride=1000, tag_mcpid=[6]):
     interv: (list) events to read from file, ie. [start, end]
     tag_mcpid: (array like) list of ancestor particle ids forming jets
     """
-
     num_chunks = int(np.ceil(num_evts / stride))
     starts = np.arange(0, num_evts, stride, dtype=int)
-
     ranges = np.array([0, stride - 1]).reshape(1, 2) + starts[:, np.newaxis]
     ranges[-1, 1] = num_evts
     
@@ -60,22 +77,21 @@ def pcls_from_file(fname, data_id, where=None, start=None, stop=None,
     columns: (list or None) list of columns to return (None = all)
     """
     with pd.HDFStore(path=fname, mode='r') as store:
-        return store.select(key, where, start, stop, columns, auto_close=True)
+        return store.select(data_id, where, start, stop, columns,
+                            auto_close=True)
 
 
 class HepData:
+
     def __init__(self, in_fname, interv):
         self.path = in_fname
-
         self.__data_obj = ReadHepmc.Hepmc(
                 in_fname,
                 start=interv[0],
                 stop=interv[1])
-        
         self.__evt_offset = interv[0]
         self.num_evts = self.__data_obj.n_events
         self.clustered = False
-
 
     def __is_event_set(self):
         return not (self.__data_obj.selected_index == None)
@@ -86,12 +102,10 @@ class HepData:
     def __set_event(self, evt_num):
         self.__data_obj.selected_index = evt_num
 
-
-    def event_isolate(func):
+    def __evt_isol(func):
         """Returns a function passed, isolated from outer event setting.
         Note: final argument in function definition should be evt_num.
         """
-        
         def isol_func(self, *args, **kwargs):
             if ('evt_num' in kwargs):
                 evt_num = kwargs['evt_num']
@@ -105,8 +119,6 @@ class HepData:
 
             return ret_val
         return isol_func
-
-            
 
     def _cluster(self, dR=0.8):
         self.dR = dR
@@ -133,8 +145,7 @@ class HepData:
 
         self.clustered = True
 
-    
-    @event_isolate
+    @__evt_isol
     def _get_parent_idxs(self, tag_mcpid, evt_num):
         tag_idx = TrueTag.tag_particle_indices(
                 self.__data_obj,
@@ -142,38 +153,31 @@ class HepData:
                 include_antiparticles=False)
         return tag_idx
 
-
-    @event_isolate
+    @__evt_isol
     def _get_lead_idx(self, pcl_idxs, evt_num):
         """Returns the particle with highest pT from a list of indices.
         """
         pt = self.__data_obj.PT[pcl_idxs]
         lead_idx = pcl_idxs[np.argmax(pt)]
-
         return lead_idx
 
-
-    @event_isolate
+    @__evt_isol
     def _get_jet_idxs(self, tag_idxs, evt_num):
         """Get indices of jets associated with tag_idxs in evt_num.
         """
         jet_idx = TrueTag.allocate(self.__data_obj, self.__jet_name,
                                     tag_idxs, self.dR**2)
-
         return jet_idx
 
-
-    @event_isolate
+    @__evt_isol
     def _get_jet_children(self, jet_idx, evt_num):
         # indices and numbers of pcls in this jet
         children = getattr( # jet indices of direct children
                 self.__data_obj,
                 self.__jet_name + "_Child1")[jet_idx]
-
         return children
 
-
-    @event_isolate
+    @__evt_isol
     def _get_jet(self, tag_mcpid, jet_idx, parent_idx, evt_num):
         # total num final state pcls in this event
         num_pcls_in_evt = len(self.__data_obj.JetInputs_Px)
@@ -217,14 +221,11 @@ class HepData:
                 pseudo_pcl_idxs = getattr(
                         self.__data_obj,
                         self.__jet_name + "_InputIdx")[jet_idx]
-
                 # remove the pseudo from the list of indices
                 # substitute for a mask where children == -1
                 pcl_idxs = pseudo_pcl_idxs[pseudo_pcl_idxs < num_pcls_in_evt]
-
                 # map indices from this jet to get idx wrt the whole event
                 pcl_idxs = self.__data_obj.JetInputs_SourceIdx[pcl_idxs]
-
                 # use as fancy index for event-wide MCPID listing
                 mcpids = getattr(self.__data_obj, attr)
                 data = np.array(mcpids[pcl_idxs], dtype=np.int32)
@@ -235,17 +236,14 @@ class HepData:
                                attr_str)[jet_idx][constit_mask]
                 data = np.array(data, dtype=np.float64)
 
-
             data = np.insert(data, 0, parent_data[key])
             df.loc[:, key] = data
 
         is_parent = np.full(num_pcls, False, dtype=np.bool_)
         is_parent[0] = True
-
         df.loc[:, 'parent'] = is_parent
 
         return df 
-    
 
     def get_jet_constits(self, tag_mcpid):
         if (not self.clustered):
