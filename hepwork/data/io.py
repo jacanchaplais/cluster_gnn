@@ -173,9 +173,8 @@ class HepData:
         return children
 
 
+    @event_isolate
     def _get_jet(self, tag_mcpid, jet_idx, parent_idx, evt_num):
-        self.__data_obj.selected_index = evt_num
-
         # total num final state pcls in this event
         num_pcls_in_evt = len(self.__data_obj.JetInputs_Px)
 
@@ -245,8 +244,6 @@ class HepData:
 
         df.loc[:, 'parent'] = is_parent
 
-
-        self.__data_obj.selected_index = None
         return df 
     
 
