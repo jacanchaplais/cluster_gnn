@@ -3,13 +3,13 @@
 #SBATCH --ntasks-per-node=20
 #SBATCH --nodes=1                # Number of nodes requested
 #SBATCH --time=00:40:00          # walltime
-#SBATCH --job-name=genbgdata
+#SBATCH --job-name=genfg
 #SBATCH --output=/scratch/jlc1n20/slogs/%x-%j.out
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=jlc1n20@soton.ac.uk
 
 datadir=/scratch/jlc1n20/data
-package='bg'
+package='fg'
 eventdir=$datadir/$package/Events/
 
 # setting up conda
