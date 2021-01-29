@@ -17,35 +17,37 @@ pcls_from_file():
 """
 
 
+from multiprocessing import Pool
+from functools import partial
+
 import numpy as np
 import pandas as pd
 import h5py
 
-from jet_tools.src import ReadHepmc, Components, FormJets, TrueTag
+from jet_tools import ReadHepmc, Components, FormJets, TrueTag
 
 
-def jets_from_raw(in_fname, num_evts, tag_mcpid=[6], stride=1000):
+def _jet_chunk(interv, in_fname, tag_mcpid):
+    return HepData(in_fname, interv).get_jet_constits(tag_mcpid)
+
+def jets_from_raw(in_fname, num_evts, tag_mcpid=[6], stride=1000, num_procs=1):
     """Returns a pandas dataframe of jet constituent calorimeter info.
     
     Keyword arguments:
     in_fname: (str) path to file containing data
     interv: (list) events to read from file, ie. [start, end]
     tag_mcpid: (array like) list of ancestor particle ids forming jets
+    stride: (int) number events per processor read in at once
+    num_procs: (int) number processes to spawn
     """
     num_chunks = int(np.ceil(num_evts / stride))
     starts = np.arange(0, num_evts, stride, dtype=int)
     ranges = np.array([0, stride - 1]).reshape(1, 2) + starts[:, np.newaxis]
     ranges[-1, 1] = num_evts
-    
-    for interv in ranges:
-        hep_data = HepData(in_fname, interv)
-        cur_jet = hep_data.get_jet_constits(tag_mcpid)
-        if (interv[0] == 0):
-            jets = cur_jet
-        else:
-            jets = pd.concat([jets, cur_jet])
 
-    return jets
+    with Pool(processes=num_procs) as pool:
+        jet_df = partial(_jet_chunk, in_fname=in_fname, tag_mcpid=tag_mcpid)
+        return pd.concat(pool.map(jet_df, list(ranges)))
 
 
 def pcls_to_file(pcl_data, out_fname, data_id):

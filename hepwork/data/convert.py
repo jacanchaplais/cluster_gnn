@@ -26,11 +26,13 @@ from hepwork.data import io
 
 @click.option('-s', '--stride', default=1000, show_default=True,
               type=click.IntRange(min=10, max=5000, clamp=True))
+@click.option('-n', '--num-procs', type=click.IntRange(min=1), default=1,
+              show_default=True)
 @click.option('-o', '--out-path', type=click.Path())
 @click.option('--overwrite', is_flag=True)
 
-def convert(in_path, num_evts, mcpids, stride, out_path, overwrite):
-    """Converts raw hepmc data into HDF5 dataframe of clustered jets."""
+def convert(in_path, num_evts, mcpids, stride, num_procs, out_path, overwrite):
+    """Converts raw HepMC data into HDF5 dataframe of clustered jets."""
 
     if (out_path is None):
         base_fname = in_path.split('.')[0]
@@ -40,7 +42,8 @@ def convert(in_path, num_evts, mcpids, stride, out_path, overwrite):
         os.remove(out_path)
     
     io.pcls_to_file(
-            pcl_data=io.jets_from_raw(in_path, num_evts, mcpids, stride),
+            pcl_data=io.jets_from_raw(in_path, num_evts, mcpids, stride,
+                                      num_procs),
             out_fname=out_path,
             data_id='jet_data')
 
