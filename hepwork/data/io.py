@@ -24,7 +24,8 @@ import numpy as np
 import pandas as pd
 import h5py
 
-from jet_tools import ReadHepmc, Components, FormJets, TrueTag
+from jet_tools import ReadHepmc, Components, FormJets
+from jet_tools.src import TrueTag
 
 
 def _jet_chunk(interv, in_fname, tag_mcpid):
@@ -247,26 +248,31 @@ class HepData:
 
         return df 
 
+    def get_lead_jet(self, tag_mcpid, evt_num):
+        tag_idxs = self._get_parent_idxs(tag_mcpid=tag_mcpid, evt_num=evt_num)
+        lead_idx = self._get_lead_idx(tag_idxs, evt_num)
+        jet_idx = self._get_jet_idxs([lead_idx], evt_num)[0]
+        return self._get_jet(tag_mcpid, jet_idx, lead_idx, evt_num)
+
     def get_jet_constits(self, tag_mcpid):
         if (not self.clustered):
             self._cluster()
 
-        # getting the jet from the first event
-        evt = 0
-        tag_idxs = self._get_parent_idxs(tag_mcpid=tag_mcpid, evt_num=evt)
-        lead_idx = self._get_lead_idx(tag_idxs, evt)
-        jet_idx = self._get_jet_idxs([lead_idx], evt)[0]
-        lead_jets = self._get_jet(tag_mcpid, jet_idx, lead_idx, evt)
+        lead_jets = None
 
-        # concatenating jets from subsequent events
-        for evt in range(1, self.num_evts):
-            tag_idxs = self._get_parent_idxs(tag_mcpid, evt)
-            lead_idx = self._get_lead_idx(tag_idxs, evt)
-            jet_idx = self._get_jet_idxs([lead_idx], evt)[0]
+        for evt in range(0, self.num_evts):
+            try:
+                cur_lead_jet = self.get_lead_jet(tag_mcpid, evt)
+            except:
+                print("Error: no lead jet in event {}".format(
+                    evt + self.__evt_offset))
+                continue
 
-            lead_jets = pd.concat([
-                lead_jets,
-                self._get_jet(tag_mcpid, jet_idx, lead_idx, evt)
-            ])
+            # loads in a jet dataframe if first iteration, concatenates
+            # subsequently
+            if (lead_jets is None):
+                lead_jets = cur_lead_jet
+            else:
+                lead_jets = pd.concat([lead_jets, cur_lead_jet])
 
         return lead_jets
