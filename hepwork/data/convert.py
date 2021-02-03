@@ -38,14 +38,13 @@ def convert(in_path, num_evts, mcpids, stride, num_procs, out_path, overwrite):
         base_fname = in_path.split('.')[0]
         out_path = base_fname + '.h5'
 
-    if (overwrite and os.path.exists(out_path)):
+    data = None
+    data = io.jets_from_raw(in_path, num_evts, mcpids, stride, num_procs)
+
+    if (overwrite and (data is not None) and os.path.exists(out_path)):
         os.remove(out_path)
     
-    io.pcls_to_file(
-            pcl_data=io.jets_from_raw(in_path, num_evts, mcpids, stride,
-                                      num_procs),
-            out_fname=out_path,
-            data_id='jet_data')
+    io.pcls_to_file(pcl_data=data, out_fname=out_path, data_id='jet_data')
 
 
 if __name__ == '__main__':
