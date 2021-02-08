@@ -14,8 +14,10 @@
 import os
 
 import click
+import vaex as vpd
 
-from hepwork.data import io
+from hepwork.data import process
+from hepwork.data import readwrite as rw
 
 
 @click.command()
@@ -26,25 +28,29 @@ from hepwork.data import io
 
 @click.option('-s', '--stride', default=1000, show_default=True,
               type=click.IntRange(min=10, max=5000, clamp=True))
+@click.option('--offset', default=0, show_default=True,
+              type=click.IntRange(min=0))
 @click.option('-n', '--num-procs', type=click.IntRange(min=1), default=1,
               show_default=True)
-@click.option('-o', '--out-path', type=click.Path())
+@click.option('--out-path', type=click.Path())
 @click.option('--overwrite', is_flag=True)
 
-def convert(in_path, num_evts, mcpids, stride, num_procs, out_path, overwrite):
+def convert(in_path, num_evts, mcpids, stride, offset, num_procs, out_path,
+            overwrite):
     """Converts raw HepMC data into HDF5 dataframe of clustered jets."""
 
     if (out_path is None):
         base_fname = in_path.split('.')[0]
-        out_path = base_fname + '.h5'
+        out_path = base_fname + '.hdf5'
 
     data = None
-    data = io.jets_from_raw(in_path, num_evts, mcpids, stride, num_procs)
+    data = process.jets_from_raw(in_path, num_evts, mcpids, stride, num_procs)
 
     if (overwrite and (data is not None) and os.path.exists(out_path)):
         os.remove(out_path)
     
-    io.pcls_to_file(pcl_data=data, out_fname=out_path, data_id='jet_data')
+    data['event'] = data['event'] + offset
+    data.export_hdf5(out_path)
 
 
 if __name__ == '__main__':
