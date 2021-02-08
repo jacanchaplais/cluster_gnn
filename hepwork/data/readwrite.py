@@ -1,48 +1,35 @@
+import os
+import warnings
+
 import numpy as np
 import pandas as pd
 import vaex as vpd
 
 
-def pcls_to_file(pcl_data, out_fname, data_id):
-    """Takes particle data and saves it to HDF5. If writing to an
-    existing file, data will be appended, and if with an existing key
-    as well, data be added as additional rows to relevant table.
-
-    Keyword arguments:
-    pcl_data: (pd.DataFrame) containing mcpid and 4-momenta
-    out_fname: (str) path in which to write data (must end '.h5')
-    data_id: (str) key to data when retrieving from storage or appending
+def pcls_to_file(pcl_data, out_fname):
+    """Takes Vaex particle data and saves it to HDF5. 
     """
-    with pd.HDFStore(path=out_fname) as store:
-        store.append(key=data_id, value=pcl_data, format='table',
-                     append=True, data_columns=True)
+    if (os.path.exists(out_fname)):
+        warnings.warn("File {} already exists, overwriting.".format(out_fname))
+        os.remove(out_fname)
+    pcl_data.export_hdf5(out_fname)
         
 
-def pcls_from_file(fname, data_id, where=None, start=None, stop=None,
-                   columns=None, vaex=False):
-    """Retrieve particle data stored in file, optionally based on where
-    criteria.
+def pcls_from_file(fname):
+    """Retrieve particle data stored in file as Vaex dataframe.
+
+    Note: if filepath can be globbed to match multiple files, data from
+    every matching file will be returned in a single dataframe.
 
     Keyword arguments:
     fname: (str) path to file storing the data (must be .h5)
-    data_id: (str) id assigned to the data upon storage
-    where: (list or None) Term (or convertible) objects, optional
-    start: (int or None) event number to start selection
-    stop: (int or None) event number to stop selection
-    columns: (list or None) list of columns to return (None = all)
-    vaex: (bool) reads a vaex formatted hdf5
     """
-    if vaex:
-        pass
-    else:
-        with pd.HDFStore(path=fname, mode='r') as store:
-            return store.select(data_id, where, start, stop, columns,
-                                auto_close=True)
+    return vpd.open(fname)
 
 def make_dataset(glob='/scratch/jlc1n20/data/*/Events/*/*.hdf5',
-                 train_split=0.65, valid_split=0.15,
+                 splits=[0.65, 0.15, 0.2],
                  out='/home/jlc1n20/projects/particle_train/data/interim/'):
-    data = vpd.open(glob)
+    data = pcls_from_file(glob)
 
     # shuffle signal and bg events so they are in random order
     col_name = 'event'
@@ -55,15 +42,8 @@ def make_dataset(glob='/scratch/jlc1n20/data/*/Events/*/*.hdf5',
     data = data.sort(col_name)
 
     # expressions to split data into train, valid and test sets
-    train_idx = int(np.floor(num_evts * train_split))
-    valid_idx = train_idx + int(np.floor(num_evts * valid_split))
-    test_idx = num_evts
-    mask = {'train': data[col_name] < train_idx,
-            'valid': (data[col_name] >= train_idx)
-                      & (data[col_name] < valid_idx),
-            'test': (data[col_name] >= valid_idx)
-                     & (data[col_name] <= num_evts)
-            }
+    mask = {}
+    mask['train'], mask['valid'], mask['test'] = data.split(frac=splits)
     
     # write each dataset out to file
     for name, select in mask.items():
