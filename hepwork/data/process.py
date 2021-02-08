@@ -51,7 +51,8 @@ def jets_from_raw(in_fname, num_evts, tag_mcpid=[6], stride=1000, num_procs=1,
     with Pool(processes=num_procs) as pool:
         jet_df = partial(_jet_chunk, in_fname=in_fname, tag_mcpid=tag_mcpid,
                          offset=offset)
-        return vpd.concat(pool.map(jet_df, list(ranges)))
+        pd_data = pd.concat(pool.map(jet_df, list(ranges)))
+        return vpd.from_pandas(pd_data, copy_index=True, index_name='event')
 
 class HepData:
 
@@ -247,4 +248,4 @@ class HepData:
             else:
                 lead_jets = pd.concat([lead_jets, cur_lead_jet])
 
-        return vpd.from_pandas(lead_jets, copy_index=True, index_name='event')
+        return lead_jets

@@ -1,0 +1,116 @@
+#!/bin/bash
+
+#---------------------- GETTING COMMAND LINE ARGUMENTS -----------------------#
+# Set some default values:
+CONDENV=base
+SIMNAME=unset
+INTERVAL=unset
+OUTDIR=unset
+TAG_MCPIDS=unset
+
+usage() {
+    echo "Usage: mkdset [OPTIONS]"
+    echo "Description:
+    Creates data pipeline for running MadGraph, processing the output,
+    and formatting into HDF5 files for use in neural networks."
+    echo "Options:
+    -c, --conda-env STRING          [default: base]
+        environment in which MadGraph will run
+    -n, --sim-name STRING           [required]
+        name of the MadGraph directory holding the sim data
+    -i, --interval TWO INTS         [required, eg. '1 10']
+        specifies number of runs, eg. 001_run, 002_run, ..., 010_run
+    -o, --out-dir PATH              [default: unset]
+        the directory in which the final HDF5 files will be stored
+        if unset, fragment HDF5 files will be left for later combining
+    -t, --tag-mcpids MULTIPLE INTS  [required, eg. '1 2 3 4']
+        MCPID / PDG codes specifying which jets should be tagged"
+    exit 2
+}
+
+PARSEDARGS=$(getopt -a -n mkdset -o c:n:i:o:t: \
+             --long conda-env:,sim-name:,interval:,out-dir:,tag-mcpids: \
+             -- "$@")
+VALARGS=$?
+if [ "$VALARGS" != "0" ]; then
+    usage
+fi
+
+eval set -- "$PARSEDARGS"
+while :
+do
+    case "$1" in
+        -c | --conda-env) CONDENV="$2"; shift 2 ;;
+        -n | --sim-name) SIMNAME="$2"; shift 2 ;;
+        -i | --interval) INTERVAL="$2"; shift 2 ;;
+        -o | --out-dir) OUTDIR="$2"; shift 2 ;;
+        -t | --tag-mcpids) TAG_MCPIDS="$2"; shift 2 ;;
+        # -- means the end of the arguments; drop this, and break out of the while loop
+        --) shift; break ;;
+        # If invalid options were passed, then getopt should have reported an error,
+        # which we checked as VALARGS when getopt was called...
+        *) echo "Unexpected option: $1 - this should not happen."
+        usage ;;
+    esac
+done
+
+reqok=1
+required() {
+    if [ 'unset' = ${2} ] ; then
+        echo "${1} is required."
+        reqok=0
+    fi
+}
+
+required '-n/--sim-name' $SIMNAME
+required '-i/--interval' $INTERVAL
+required '-o/--outdir' $OUTDIR
+required '-t/--tag-mcpids' $TAG_MCPIDS
+
+if [ $reqok -eq 0 ] ; then
+    usage
+fi
+
+#------------------------- STARTING THE DATA PIPELINE ------------------------#
+datadir=/scratch/$USER/data
+simdir=$datadir/$SIMNAME
+evtdir=$simdir/$SIMNAME/Events
+
+projdir=$(cd `dirname $0` && cd .. && pwd)
+
+if [ ! -d $simdir ] ; then
+    echo "Error: your simulation directory was not found at $simdir"
+    exit 2
+fi
+
+extractjids=""
+for i in `echo $INTERVAL | xargs seq` ; do
+    rundir=`printf "%03d" $i`_run
+
+    # if directory already exists, replace it with empty one
+    if [ -d $evtdir/$rundir ]; then
+        rm -rf $evtdir/$rundir
+        mkdir $evtdir/$rundir
+    fi
+
+    # submit data gen script, and store the job id
+    jstring=`sbatch --job-name=$SIMNAME --dependency=singleton \
+                    --output=$evtdir/$rundir/datagen.log \
+                    .slurm/genevts.sh $simdir $CONDENV $rundir`
+    jid=`echo $jstring | awk '{print $NF}'`
+
+    # once data gen has been successful, process and output hdf5
+    gnum=$(( $i % 7 ))
+    gname="con${SIMNAME}${gnum}"
+    jstring=`sbatch --job-name=$gname --dependency=afterok:${jid},singleton \
+                    --output=$evtdir/$rundir/convert.log \
+                    .slurm/extract.sh $projdir $simdir $rundir $TAG_MCPIDS`
+    jid=`echo $jstring | awk '{print $NF}'`
+    extractjids="$extractjids:$jid"
+done
+
+# after all data has been converted, train / valid / test dsets
+if [ ! 'unset' = $OUTDIR ] ; then
+    sbatch --job-name='merge' --dependency=after:${extractjids} \
+           .slurm/merge.sh $projdir $datadir
+fi
