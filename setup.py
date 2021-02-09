@@ -7,4 +7,9 @@ setup(
     description='A prototype project for getting into ML and particle physics.',
     author='Jacan Chaplais',
     license='MIT',
+    install_requires= [
+        "vaex >= 3.0.0",
+        "h5py",
+        "hdf5"
+    ]
 )
