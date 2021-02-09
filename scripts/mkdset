@@ -74,7 +74,7 @@ fi
 #------------------------- STARTING THE DATA PIPELINE ------------------------#
 datadir=/scratch/$USER/data
 simdir=$datadir/$SIMNAME
-evtdir=$simdir/$SIMNAME/Events
+evtdir=$simdir/Events
 
 projdir=$(cd `dirname $0` && cd .. && pwd)
 
@@ -83,6 +83,7 @@ if [ ! -d $simdir ] ; then
     exit 2
 fi
 
+
 extractjids=""
 for i in `echo $INTERVAL | xargs seq` ; do
     rundir=`printf "%03d" $i`_run
@@ -90,12 +91,13 @@ for i in `echo $INTERVAL | xargs seq` ; do
     # if directory already exists, replace it with empty one
     if [ -d $evtdir/$rundir ]; then
         rm -rf $evtdir/$rundir
-        mkdir $evtdir/$rundir
     fi
+
+    mkdir $evtdir/$rundir
 
     # submit data gen script, and store the job id
     jstring=`sbatch --job-name=$SIMNAME --dependency=singleton \
-                    --output=$evtdir/$rundir/datagen.log \
+                    --output="$evtdir/$rundir/datagen.log" \
                     .slurm/genevts.sh $simdir $CONDENV $rundir`
     jid=`echo $jstring | awk '{print $NF}'`
 
@@ -103,14 +105,15 @@ for i in `echo $INTERVAL | xargs seq` ; do
     gnum=$(( $i % 7 ))
     gname="con${SIMNAME}${gnum}"
     jstring=`sbatch --job-name=$gname --dependency=afterok:${jid},singleton \
-                    --output=$evtdir/$rundir/convert.log \
+                    --output="$evtdir/$rundir/convert.log" \
                     .slurm/extract.sh $projdir $simdir $rundir $TAG_MCPIDS`
     jid=`echo $jstring | awk '{print $NF}'`
-    extractjids="$extractjids:$jid"
+    extractjids="$jid,$extractjids"
 done
 
+echo $extractjids
 # after all data has been converted, train / valid / test dsets
 if [ ! 'unset' = $OUTDIR ] ; then
-    sbatch --job-name='merge' --dependency=after:${extractjids} \
-           .slurm/merge.sh $projdir $datadir
+    sbatch --job-name='merge' --dependency=after:${extractjids%?} \
+           .slurm/merge.sh $datadir $projdir $OUTDIR
 fi
