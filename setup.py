@@ -9,7 +9,7 @@ setup(
     license='MIT',
     install_requires= [
         "vaex >= 3.0.0",
-        "h5py",
+        "h5py >= 2.9",
         "hdf5"
     ]
 )

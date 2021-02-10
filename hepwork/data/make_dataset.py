@@ -96,8 +96,8 @@ def merge(glob, out_dir, splits):
     
     # write each dataset out to file
     for name, select in mask.items():
-        data.export_hdf5(out_dir + '/' + name + '.hdf5',
-                         selection=select, virtual=False)
+        data.export_hdf5(out_dir + '/' + name + '.hdf5', selection=select,
+                         virtual=False, progress=True)
 
 if __name__ == '__main__':
     make_dataset()

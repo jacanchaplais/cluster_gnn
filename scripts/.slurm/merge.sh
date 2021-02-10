@@ -4,21 +4,15 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=01:00:00
 
-projdir=$1
-datadir=$2
+datadir=$1
+projdir=$2
+outdir=$3
 
 # setting up conda
 source activate jet-tools
 
 # identifying the location of the script to run
 progfile=$projdir/hepwork/data/make_dataset.py
-fileglob="$datadir/*/Events/*/*.hdf5"
-outdir="$projdir/data/interim/"
-
-# command eine args for script
-args="merge"
-args="$args $fileglob"
-args="$args $outdir"
 
 # executing the script
-echo $args | xargs python $progfile
+python $progfile merge ${datadir}'/*/Events/*/*.hdf5' $outdir

@@ -84,7 +84,6 @@ if [ ! -d $simdir ] ; then
 fi
 
 
-extractjids=""
 for i in `echo $INTERVAL | xargs seq` ; do
     rundir=`printf "%03d" $i`_run
 
@@ -108,12 +107,16 @@ for i in `echo $INTERVAL | xargs seq` ; do
                     --output="$evtdir/$rundir/convert.log" \
                     .slurm/extract.sh $projdir $simdir $rundir $TAG_MCPIDS`
     jid=`echo $jstring | awk '{print $NF}'`
-    extractjids="$jid,$extractjids"
+    if [ -z $mergedeps ] ; then
+        mergedeps="afterok:$jid"
+    else
+        mergedeps="$mergedeps,afterok:$jid"
+    fi
 done
 
-echo $extractjids
+echo $mergedeps
 # after all data has been converted, train / valid / test dsets
 if [ ! 'unset' = $OUTDIR ] ; then
-    sbatch --job-name='merge' --dependency=after:${extractjids%?} \
+    sbatch --job-name='merge' --dependency=$mergedeps \
            .slurm/merge.sh $datadir $projdir $OUTDIR
 fi

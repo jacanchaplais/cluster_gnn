@@ -3,7 +3,7 @@
 #SBATCH --nodes=1                # Number of nodes requested
 #SBATCH --ntasks-per-node=10
 #SBATCH --time=02:00:00
-#SBATCH --mem=10G
+#SBATCH --mem=20G
 
 projdir=$1
 simdir=$2
