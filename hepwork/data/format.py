@@ -89,22 +89,22 @@ def lgn(ctx):
         #     'compression': None,
         #     'shuffle': False,
         #     'dtype': '<f8',},
-        # 'truth_Pmu': {
-        #     'shape': (num_evts, 4),
-        #     'compression': None,
-        #     'shuffle': False,
-        #     'slice': (),
-        #     'dtype': '<f8',},
+        'truth_Pmu': {
+            'shape': (num_evts, 4),
+            'compression': None,
+            'shuffle': False,
+            'slice': (),
+            'dtype': '<f8',},
 
         # # dataset properties relating to jet constituents
-        # 'label': {
-        #     'data': np.ones(200, dtype='<i2'),
-        #     'shape': (num_evts, 200),
-        #     'compression': 'lzf',
-        #     'shuffle': True,
-        #     'slice': (),
-        #     'chunk_size': (1, 200),
-        #     'dtype': '<i2',},
+        'label': {
+            'data': np.ones(200, dtype='<i2'),
+            'shape': (num_evts, 200),
+            'compression': 'lzf',
+            'shuffle': True,
+            'slice': (),
+            'chunk_size': (1, 200),
+            'dtype': '<i2',},
         # 'mass': {
         #     'shape': (num_evts, 200),
         #     'compression': 'lzf',
@@ -137,15 +137,27 @@ def lgn(ctx):
             # writing out constit properties to each event manually
             # TODO: check if faster by using np.split and creating zero
             #       padded array, then using vectorised assignment
-            for evt in range(1, num_evts + 1):
-                start = chunks[evt - 1]
-                stop = chunks[evt]
-                num_in_jet = stop - start
-                # defn slices outside use to enable diffs between dsets:
-                dset_idx = (evt - 1, slice(None, num_in_jet),) + slc
-                dsrc_idx = slc + (slice(start, stop),)
-                # pmu shape has to be transposed
-                dset[dset_idx] = data[dsrc_idx].T
+            # TODO: make this DRY without if within for
+            evt_range = range(1, num_evts + 1)
+            if name.lower() == 'pmu':
+                for evt in evt_range:
+                    start = chunks[evt - 1]
+                    stop = chunks[evt]
+                    num_in_jet = stop - start
+                    # defn slices outside use to enable diffs between dsets:
+                    dset_idx = (evt - 1, slice(None, num_in_jet),) + slc
+                    dsrc_idx = slc + (slice(start, stop),)
+                    # pmu shape has to be transposed
+                    dset[dset_idx] = data[dsrc_idx].T
+            elif name.lower() == 'label':
+                for evt in evt_range:
+                    start = chunks[evt - 1]
+                    stop = chunks[evt]
+                    num_in_jet = stop - start
+                    # defn slices outside use to enable diffs between dsets:
+                    dset_idx = (evt - 1, slice(None, num_in_jet),)
+                    dset[dset_idx] = 1
+
             # elif name is 'label':
             #     for evt in range(1, num_evts + 1):
             #         start = chunks[evt - 1]
