@@ -12,12 +12,12 @@
 ###############################################################################
 
 import os
+import glob
 
 import click
 import numpy as np
 import vaex as vpd
 
-from hepwork.data import process
 from hepwork.data import readwrite as rw
 
 @click.group()
@@ -39,13 +39,15 @@ def make_dataset():
 def extract(in_path, num_evts, mcpids, stride, offset, num_procs, out_path,
             overwrite):
     """Converts raw HepMC data into HDF5 dataframe of clustered jets."""
+    # scoped import of slow module to prevent slowing other commands
+    from hepwork.data.process import jets_from_raw
 
     if (out_path is None):
         base_fname = in_path.split('.')[0]
         out_path = base_fname + '.hdf5'
 
     data = None
-    data = process.jets_from_raw(in_path, num_evts, mcpids, stride, num_procs)
+    data = jets_from_raw(in_path, num_evts, mcpids, stride, num_procs)
 
     if (overwrite and (data is not None) and os.path.exists(out_path)):
         os.remove(out_path)
@@ -55,19 +57,19 @@ def extract(in_path, num_evts, mcpids, stride, offset, num_procs, out_path,
 
 
 @make_dataset.command()
-@click.argument('glob', type=click.Path())
+@click.argument('pattern', type=click.STRING)
 @click.argument('out_dir', type=click.Path(exists=True, file_okay=False,
                 readable=False, writable=True))
 @click.option('-s', '--splits', type=click.FLOAT, multiple=True,
               default=[0.65, 0.15, 0.2], show_default=True,
               help="Ratio of events used in train : valid : test datasets")
-def merge(glob, out_dir, splits):
+def merge(pattern, out_dir, splits):
     """Combines jets data from each of the simulation runs into train,
     validate, and test datasets, ready for processing by a neural net.
-    GLOB provides the path pattern matching all HDF5 files to combine.
+    PATTERN provides glob pattern matching all HDF5 files to combine.
     OUT_DIR is the Location into which the datasets are written.
     """
-    data = rw.pcls_from_file(glob)
+    data = rw.pcls_from_file(pattern)
 
     # shuffle signal and bg events so they are in random order
     col_name = 'event'
@@ -80,12 +82,12 @@ def merge(glob, out_dir, splits):
     data = data.sort(col_name)
 
     sum_spl = float(sum(splits))
-    tr_spl = splits[0] / sum_spl
-    val_spl = splits[1] / sum_spl
+    train_spl = splits[0] / sum_spl
+    valid_spl = splits[1] / sum_spl
 
     # expressions to split data into train, valid and test sets
-    train_idx = int(np.floor(num_evts * tr_spl))
-    valid_idx = train_idx + int(np.floor(num_evts * val_spl))
+    train_idx = int(np.floor(num_evts * train_spl))
+    valid_idx = train_idx + int(np.floor(num_evts * valid_spl))
     test_idx = num_evts
     mask = {'train': data[col_name] < train_idx,
             'valid': (data[col_name] >= train_idx)
@@ -98,6 +100,28 @@ def merge(glob, out_dir, splits):
     for name, select in mask.items():
         data.export_hdf5(out_dir + '/' + name + '.hdf5', selection=select,
                          virtual=False, progress=True)
+
+@make_dataset.command()
+@click.argument('pattern', type=click.STRING)
+@click.argument('offset', type=click.INT)
+def reindex(pattern, offset):
+    """Adds offset to event index for fragment hdf5 files matching glob
+    pattern. Useful if you forgot to set offset when first extracting.
+    """
+    for fpath in glob.iglob(pattern):
+        # create path for temporary converted file
+        fname, fext = os.path.splitext(fpath)
+        new_fpath = fname + '_c' + fext
+
+        # get data and apply the offset
+        vdf = vpd.open(fpath)
+        vdf['event'] = vdf['event'] + offset
+        vdf.export_hdf5(new_fpath)
+        vdf.close()
+
+        # replace the old file with the reindexed one
+        os.replace(new_fpath, fpath)
+
 
 if __name__ == '__main__':
     make_dataset()
