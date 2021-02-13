@@ -20,10 +20,11 @@ def format(ctx, in_path, out_dir, overwrite):
     if os.path.exists(out_path):
         if overwrite:
             os.remove(out_path)
-        elif no_overwrite:
-            raise Exception("A converted file of the same name exists in this "
-                            + "location. Please move / delete it, or run "
-                            + "again without the --no-overwrite flag.")
+        else:
+            raise FileExistsError(
+                "A converted file of the same name exists in this "
+                + "location. Please move / rename it, or run again "
+                + "without the --no-overwrite flag.")
 
     # extracting data and passing it to context for subcommands:
     dkey = lambda dname: 'table/columns/' + dname + '/data'
@@ -89,12 +90,12 @@ def lgn(ctx):
         #     'compression': None,
         #     'shuffle': False,
         #     'dtype': '<f8',},
-        'truth_Pmu': {
-            'shape': (num_evts, 4),
-            'compression': None,
-            'shuffle': False,
-            'slice': (),
-            'dtype': '<f8',},
+        # 'truth_Pmu': {
+        #     'shape': (num_evts, 4),
+        #     'compression': None,
+        #     'shuffle': False,
+        #     'slice': (),
+        #     'dtype': '<f8',},
 
         # # dataset properties relating to jet constituents
         'label': {
@@ -141,6 +142,7 @@ def lgn(ctx):
             evt_range = range(1, num_evts + 1)
             if name.lower() == 'pmu':
                 for evt in evt_range:
+                    # TODO: use np.ma mask arrays to identify parent pcl
                     start = chunks[evt - 1]
                     stop = chunks[evt]
                     num_in_jet = stop - start
