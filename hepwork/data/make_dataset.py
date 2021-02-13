@@ -40,14 +40,14 @@ def extract(in_path, num_evts, mcpids, stride, offset, num_procs, out_path,
             overwrite):
     """Converts raw HepMC data into HDF5 dataframe of clustered jets."""
     # scoped import of slow module to prevent slowing other commands
-    from hepwork.data import process 
+    from hepwork.data.process import jets_from_raw
 
     if (out_path is None):
         base_fname = in_path.split('.')[0]
         out_path = base_fname + '.hdf5'
 
     data = None
-    data = process.jets_from_raw(in_path, num_evts, mcpids, stride, num_procs)
+    data = jets_from_raw(in_path, num_evts, mcpids, stride, num_procs)
 
     if (overwrite and (data is not None) and os.path.exists(out_path)):
         os.remove(out_path)
