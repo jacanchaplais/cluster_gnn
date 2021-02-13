@@ -31,17 +31,17 @@ usage() {
     -o, --out-dir PATH              [optional, default: unset]
         the directory in which the final HDF5 files will be stored
         if unset, fragment HDF5 files will be left for later combining
-    -t, --tag-mcpids MULTIPLE INTS  [required, eg. '1 2 3 4 5 21']
-        MCPID / PDG codes specifying which jets should be tagged
     -z, --offset INT                [optional, default: 0]
         numbers the events from a different starting point
-        eg. if another sim w/ two 5,000 evt runs exists, use '-z 10000'"
+        eg. if another sim w/ two 5,000 evt runs exists, use '-z 10000'
+    -t, --tag-mcpids MULTIPLE INTS  [required, eg. '1 2 3 4 5 21']
+        MCPID / PDG codes specifying which jets should be tagged"
     exit 2
 }
 
-PARSEDARGS=$(getopt -a -n mkdset -o c:n:i:o:t: \
-             --long conda-env:,sim-name:,interval:,out-dir:,tag-mcpids: \
-             -- "$@")
+PARSEDARGS=$(getopt -a -n mkdset -o c:n:i:o:z:t: \
+             --long conda-env:,sim-name:,interval:,out-dir:,offset:,\
+             tag-mcpids: -- "$@")
 VALARGS=$?
 if [ "$VALARGS" != "0" ]; then
     usage
@@ -55,8 +55,8 @@ do
         -n | --sim-name) SIMNAME="$2"; shift 2 ;;
         -i | --interval) INTERVAL="$2"; shift 2 ;;
         -o | --out-dir) OUTDIR="$2"; shift 2 ;;
-        -t | --tag-mcpids) TAG_MCPIDS="$2"; shift 2 ;;
         -z | --offset) OFFSET="$2"; shift 2 ;;
+        -t | --tag-mcpids) TAG_MCPIDS="$2"; shift 2 ;;
         # -- means the end of the arguments; drop this, and break out of the while loop
         --) shift; break ;;
         # If invalid options were passed, then getopt should have reported an error,
@@ -117,7 +117,7 @@ for i in `echo $INTERVAL | xargs seq` ; do
     jstring=`sbatch --job-name=$gname --dependency=afterok:${jid},singleton \
                     --output="$evtdir/$rundir/convert.log" \
                     .slurm/extract.sh $projdir $simdir $rundir \
-                                      "'${TAG_MCPIDS}'" $OFFSET`
+                                      "${TAG_MCPIDS}" $OFFSET`
     jid=`echo $jstring | awk '{print $NF}'`
     if [ -z $mergedeps ] ; then
         mergedeps="afterok:$jid"

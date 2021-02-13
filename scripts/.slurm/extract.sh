@@ -8,8 +8,8 @@
 projdir=$1
 simdir=$2
 rundir=$3
-tagmcpid=$4
-offset=$5
+offset=$4
+tagmcpid=$5
 
 # setting up conda
 source activate jet-tools
