@@ -17,7 +17,6 @@ import click
 import numpy as np
 import vaex as vpd
 
-from hepwork.data import process
 from hepwork.data import readwrite as rw
 
 @click.group()
@@ -39,6 +38,8 @@ def make_dataset():
 def extract(in_path, num_evts, mcpids, stride, offset, num_procs, out_path,
             overwrite):
     """Converts raw HepMC data into HDF5 dataframe of clustered jets."""
+    # scoped import of slow module to prevent slowing other commands
+    from hepwork.data import process 
 
     if (out_path is None):
         base_fname = in_path.split('.')[0]
