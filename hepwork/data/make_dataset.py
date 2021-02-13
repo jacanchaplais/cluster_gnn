@@ -12,6 +12,7 @@
 ###############################################################################
 
 import os
+import glob
 
 import click
 import numpy as np
@@ -99,6 +100,28 @@ def merge(glob, out_dir, splits):
     for name, select in mask.items():
         data.export_hdf5(out_dir + '/' + name + '.hdf5', selection=select,
                          virtual=False, progress=True)
+
+@make_dataset.command()
+@click.argument('pattern', type=click.Path())
+@click.argument('offset', type=click.Int)
+def reindex(pattern, offset):
+    """Adds offset to event index for fragment hdf5 files matching glob
+    pattern. Useful if you forgot to set offset when first extracting.
+    """
+    for fpath in glob.iglob(pattern):
+        # create path for temporary converted file
+        fname, fext = os.path.splitext(fpath)
+        new_fpath = fname + '_c' + fext
+
+        # get data and apply the offset
+        vdf = vpd.open(fpath)
+        vdf['event'] = vdf['event'] + offset
+        vdf.export_hdf5(new_fpath)
+        vdf.close()
+
+        # replace the old file with the reindexed one
+        os.replace(new_fpath, fpath)
+
 
 if __name__ == '__main__':
     make_dataset()
