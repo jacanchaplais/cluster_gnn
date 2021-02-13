@@ -64,7 +64,6 @@ required() {
 
 required '-n/--sim-name' $SIMNAME
 required '-i/--interval' $INTERVAL
-required '-o/--outdir' $OUTDIR
 required '-t/--tag-mcpids' $TAG_MCPIDS
 
 if [ $reqok -eq 0 ] ; then
@@ -101,7 +100,7 @@ for i in `echo $INTERVAL | xargs seq` ; do
     jid=`echo $jstring | awk '{print $NF}'`
 
     # once data gen has been successful, process and output hdf5
-    gnum=$(( $i % 7 ))
+    gnum=$(( $i % 4 ))
     gname="con${SIMNAME}${gnum}"
     jstring=`sbatch --job-name=$gname --dependency=afterok:${jid},singleton \
                     --output="$evtdir/$rundir/convert.log" \
