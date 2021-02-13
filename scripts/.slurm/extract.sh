@@ -9,6 +9,7 @@ projdir=$1
 simdir=$2
 rundir=$3
 tagmcpid=$4
+offset=$5
 
 # setting up conda
 source activate jet-tools
@@ -21,7 +22,7 @@ runconfigfile=$simdir/Cards/run_card.dat
 numevts=`grep -Po '\d*(?=(.*= nevents))' $runconfigfile`
 
 runnum=`echo $rundir | cut -d"_" -f 1`
-offset=$(( (10#$runnum - 1) * $numevts ))
+offset=$(( $offset + (10#$runnum - 1) * $numevts ))
 
 # command eine args for script
 args="extract"
