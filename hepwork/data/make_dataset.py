@@ -57,19 +57,19 @@ def extract(in_path, num_evts, mcpids, stride, offset, num_procs, out_path,
 
 
 @make_dataset.command()
-@click.argument('glob', type=click.Path())
+@click.argument('pattern', type=click.STRING)
 @click.argument('out_dir', type=click.Path(exists=True, file_okay=False,
                 readable=False, writable=True))
 @click.option('-s', '--splits', type=click.FLOAT, multiple=True,
               default=[0.65, 0.15, 0.2], show_default=True,
               help="Ratio of events used in train : valid : test datasets")
-def merge(glob, out_dir, splits):
+def merge(pattern, out_dir, splits):
     """Combines jets data from each of the simulation runs into train,
     validate, and test datasets, ready for processing by a neural net.
-    GLOB provides the path pattern matching all HDF5 files to combine.
+    PATTERN provides glob pattern matching all HDF5 files to combine.
     OUT_DIR is the Location into which the datasets are written.
     """
-    data = rw.pcls_from_file(glob)
+    data = rw.pcls_from_file(pattern)
 
     # shuffle signal and bg events so they are in random order
     col_name = 'event'
@@ -82,12 +82,12 @@ def merge(glob, out_dir, splits):
     data = data.sort(col_name)
 
     sum_spl = float(sum(splits))
-    tr_spl = splits[0] / sum_spl
-    val_spl = splits[1] / sum_spl
+    train_spl = splits[0] / sum_spl
+    valid_spl = splits[1] / sum_spl
 
     # expressions to split data into train, valid and test sets
-    train_idx = int(np.floor(num_evts * tr_spl))
-    valid_idx = train_idx + int(np.floor(num_evts * val_spl))
+    train_idx = int(np.floor(num_evts * train_spl))
+    valid_idx = train_idx + int(np.floor(num_evts * valid_spl))
     test_idx = num_evts
     mask = {'train': data[col_name] < train_idx,
             'valid': (data[col_name] >= train_idx)
