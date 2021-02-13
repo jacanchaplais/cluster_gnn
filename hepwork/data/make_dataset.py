@@ -102,7 +102,7 @@ def merge(glob, out_dir, splits):
                          virtual=False, progress=True)
 
 @make_dataset.command()
-@click.argument('pattern', type=click.STR)
+@click.argument('pattern', type=click.STRING)
 @click.argument('offset', type=click.INT)
 def reindex(pattern, offset):
     """Adds offset to event index for fragment hdf5 files matching glob
