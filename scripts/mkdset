@@ -116,8 +116,8 @@ for i in `echo $INTERVAL | xargs seq` ; do
     gname="con${SIMNAME}${gnum}"
     jstring=`sbatch --job-name=$gname --dependency=afterok:${jid},singleton \
                     --output="$evtdir/$rundir/convert.log" \
-                    .slurm/extract.sh $projdir $simdir $rundir $TAG_MCPIDS \
-                                      $OFFSET`
+                    .slurm/extract.sh $projdir $simdir $rundir \
+                                      "'${TAG_MCPIDS}'" $OFFSET`
     jid=`echo $jstring | awk '{print $NF}'`
     if [ -z $mergedeps ] ; then
         mergedeps="afterok:$jid"
