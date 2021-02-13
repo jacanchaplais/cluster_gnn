@@ -7,30 +7,41 @@ SIMNAME=unset
 INTERVAL=unset
 OUTDIR=unset
 TAG_MCPIDS=unset
+OFFSET=0
 
 usage() {
     echo "Usage: mkdset [OPTIONS]"
     echo "Description:
     Creates data pipeline for running MadGraph, processing the output,
-    and formatting into HDF5 files for use in neural networks."
+    and formatting into HDF5 files for use in neural networks.
+    NOTE: multiple int options must be given in quotation marks,
+          separated with spaces."
     echo "Options:
-    -c, --conda-env STRING          [default: base]
+    -c, --conda-env STRING          [optional, default: base]
         environment in which MadGraph will run
+        NOTE: data extraction currently assumes jet-tools env exists
     -n, --sim-name STRING           [required]
         name of the MadGraph directory holding the sim data
-    -i, --interval TWO INTS         [required, eg. '1 10']
+        NOTE: this is currently assumed to be in /scratch/<uname>/data/
+    -i, --interval INT(S)           [required, eg. 175 or '90 100']
         specifies number of runs, eg. 001_run, 002_run, ..., 010_run
-    -o, --out-dir PATH              [default: unset]
+        if one number provided, eg. -i 175, will produce runs 1 -> 175
+        if two given, 1st is start, eg. -i '90 92' gives runs 90 -> 92
+        if three given, 1st = start, 2nd = stride, 3rd = stop
+    -o, --out-dir PATH              [optional, default: unset]
         the directory in which the final HDF5 files will be stored
         if unset, fragment HDF5 files will be left for later combining
-    -t, --tag-mcpids MULTIPLE INTS  [required, eg. '1 2 3 4']
+    -z, --offset INT                [optional, default: 0]
+        numbers the events from a different starting point
+        eg. if another sim w/ two 5,000 evt runs exists, use '-z 10000'
+    -t, --tag-mcpids MULTIPLE INTS  [required, eg. '1 2 3 4 5 21']
         MCPID / PDG codes specifying which jets should be tagged"
     exit 2
 }
 
-PARSEDARGS=$(getopt -a -n mkdset -o c:n:i:o:t: \
-             --long conda-env:,sim-name:,interval:,out-dir:,tag-mcpids: \
-             -- "$@")
+PARSEDARGS=$(getopt -a -n mkdset -o c:n:i:o:z:t: \
+             --long conda-env:,sim-name:,interval:,out-dir:,offset:,\
+             tag-mcpids: -- "$@")
 VALARGS=$?
 if [ "$VALARGS" != "0" ]; then
     usage
@@ -44,6 +55,7 @@ do
         -n | --sim-name) SIMNAME="$2"; shift 2 ;;
         -i | --interval) INTERVAL="$2"; shift 2 ;;
         -o | --out-dir) OUTDIR="$2"; shift 2 ;;
+        -z | --offset) OFFSET="$2"; shift 2 ;;
         -t | --tag-mcpids) TAG_MCPIDS="$2"; shift 2 ;;
         # -- means the end of the arguments; drop this, and break out of the while loop
         --) shift; break ;;
@@ -64,7 +76,6 @@ required() {
 
 required '-n/--sim-name' $SIMNAME
 required '-i/--interval' $INTERVAL
-required '-o/--outdir' $OUTDIR
 required '-t/--tag-mcpids' $TAG_MCPIDS
 
 if [ $reqok -eq 0 ] ; then
@@ -101,11 +112,12 @@ for i in `echo $INTERVAL | xargs seq` ; do
     jid=`echo $jstring | awk '{print $NF}'`
 
     # once data gen has been successful, process and output hdf5
-    gnum=$(( $i % 7 ))
+    gnum=$(( $i % 4 ))
     gname="con${SIMNAME}${gnum}"
     jstring=`sbatch --job-name=$gname --dependency=afterok:${jid},singleton \
                     --output="$evtdir/$rundir/convert.log" \
-                    .slurm/extract.sh $projdir $simdir $rundir $TAG_MCPIDS`
+                    .slurm/extract.sh $projdir $simdir $rundir \
+                                      "${TAG_MCPIDS}" $OFFSET`
     jid=`echo $jstring | awk '{print $NF}'`
     if [ -z $mergedeps ] ; then
         mergedeps="afterok:$jid"
