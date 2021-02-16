@@ -115,7 +115,7 @@ def lgn(ctx):
 
         # # dataset properties relating to jet constituents
         'label': {
-            'data': np.ones(200, dtype='<i2'),
+            'data': None,
             'shape': (num_evts, 200),
             'compression': 'lzf',
             'shuffle': True,
