@@ -10,9 +10,10 @@ import numpy as np
 @click.argument('out_dir', type=click.Path(exists=False, dir_okay=True,
                                             resolve_path=True, writable=True,
                                             readable=False))
+@click.argument('tag_mcpid', type=click.INT)
 @click.option('--overwrite/--no-overwrite', default=True)
 @click.pass_context
-def format(ctx, in_path, out_dir, overwrite):
+def format(ctx, in_path, out_dir, tag_mcpid, overwrite):
     # preparing the path of the new file:
     f_name = os.path.basename(in_path)
     f_name, f_ext = os.path.splitext(f_name)
@@ -44,19 +45,23 @@ def format(ctx, in_path, out_dir, overwrite):
 
         # counting the number of particles per event
         evts, evt_cts = np.unique(f_in[dkey('event')], return_counts=True)
+        parent = f_in[dkey('parent')][...]
+        mcpid = f_in[dkey('mcpid')]
+        is_signal = mcpid[parent] == tag_mcpid
 
         # export context to subcommands
         ctx.obj['evt_cts'] = evt_cts
         ctx.obj['in_path'] = in_path
         ctx.obj['out_path'] = out_path
         ctx.obj['pmu'] = f_temp['vpmu']
-        ctx.obj['parent'] = f_in['table/columns/parent/data'][...]
+        ctx.obj['parent'] = parent
+        ctx.obj['is_signal'] = is_signal
 
     @ctx.call_on_close
     def cleanup():
         # deleting temporary file holding virtual pmu dset
         f_temp.close()
-        # os.remove(tmp_path)
+        os.remove(tmp_path)
 
 @format.command()
 @click.pass_context
@@ -65,7 +70,8 @@ def lgn(ctx):
     in_path = ctx.obj['in_path']
     out_path = ctx.obj['out_path']
     pmu = ctx.obj['pmu']
-    is_parent = ctx.obj['parent']
+    parent_mask = ctx.obj['parent']
+    is_signal = ctx.obj['is_signal']
     evt_cts = ctx.obj['evt_cts'] 
     # counting and finding locations of particle / event splits
     num_evts = len(evt_cts)
@@ -76,31 +82,46 @@ def lgn(ctx):
     # dataset properties in easy to change dict interface
     dsets = {
         # dataset properties relating to the whole jet
-        # 'Nobj': {
-        #     'shape': (num_evts,),
-        #     'compression': None,
-        #     'shuffle': False,
-        #     'dtype': '<i2'},
-        # 'is_signal': {
-        #     'shape': (num_evts,),
-        #     'compression': None,
-        #     'shuffle': False, #     'dtype': '<i2'},
+        'Nobj': {
+            'data': evt_cts - 1, # num pcls -1 for parent
+            'shape': (num_evts,),
+            'compression': None,
+            'chunk_size': None,
+            'shuffle': False,
+            'slice': (),
+            'dtype': '<i2'},
+        'is_signal': {
+            'data': is_signal,
+            'shape': (num_evts,),
+            'compression': None,
+            'chunk_size': None,
+            'shuffle': False,
+            'slice': (),
+            'dtype': '<i2'},
         # 'jet_pt': {
         #     'data': jet_pt,
         #     'shape': (num_evts,),
         #     'compression': None,
         #     'shuffle': False,
         #     'dtype': '<f8',},
+        'truth_Pmu': {
+            'data': pmu,
+            'shape': (num_evts, 4),
+            'compression': None,
+            'chunk_size': None,
+            'shuffle': False,
+            'slice': (),
+            'dtype': '<f8',},
 
         # # dataset properties relating to jet constituents
-        # 'label': {
-        #     'data': np.ones(200, dtype='<i2'),
-        #     'shape': (num_evts, 200),
-        #     'compression': 'lzf',
-        #     'shuffle': True,
-        #     'slice': (),
-        #     'chunk_size': (1, 200),
-        #     'dtype': '<i2',},
+        'label': {
+            'data': np.ones(200, dtype='<i2'),
+            'shape': (num_evts, 200),
+            'compression': 'lzf',
+            'shuffle': True,
+            'slice': (),
+            'chunk_size': (1, 200),
+            'dtype': '<i2',},
         # 'mass': {
         #     'shape': (num_evts, 200),
         #     'compression': 'lzf',
@@ -111,20 +132,10 @@ def lgn(ctx):
             'data': pmu,
             'shape': (num_evts, 200, 4),
             'compression': 'lzf',
-            'chunk_size': (1, 200, 4),
             'shuffle': True,
             'slice': (slice(None),),
-            'dtype': '<f8',
-
-            'parent': {
-                'name': 'truth_Pmu',
-                'shape': (num_evts, 4),
-                'compression': None,
-                'chunk_size': None,
-                'shuffle': False,
-                'slice': (),
-                'dtype': '<f8',},
-            },
+            'chunk_size': (1, 200, 4),
+            'dtype': '<f8',},
     }
 
     # writing the datasets out to file
@@ -141,31 +152,23 @@ def lgn(ctx):
             slc = info['slice']
 
             # writing out constit properties to each event manually
-            # TODO: check if faster by using np.split and creating zero
-            #       padded array, then using vectorised assignment
             # TODO: make this DRY without if within for
             evt_range = range(1, num_evts + 1)
             if name.lower() == 'pmu':
-                parent = info['parent']
-                f_out.create_dataset(
-                    parent['name'], shape=parent['shape'],
-                    chunks=parent['chunk_size'],
-                    compression=parent['compression'],
-                    shuffle=parent['shuffle'])
-                parent_dset = f_out[parent['name']]
-                parent_slc = parent['slice']
                 for evt in evt_range:
-                    # TODO: use np.ma mask arrays to identify parent pcl
                     start = chunks[evt - 1]
                     stop = chunks[evt]
                     num_in_jet = stop - start - 1
-                    parent_mask = is_parent[start:stop]
-                    child_mask = parent_mask == False
+                    # select only children
+                    mask = parent_mask[start:stop] == False
                     # defn slices outside use to enable diffs between dsets:
                     dset_idx = (evt - 1, slice(None, num_in_jet),) + slc
                     dsrc_idx = slc + (slice(start, stop),)
                     # pmu shape has to be transposed
-                    dset[dset_idx] = data[dsrc_idx][:, child_mask].T
+                    dset[dset_idx] = data[dsrc_idx][:, mask].T
+            elif name.lower() == 'truth_pmu':
+                mask = parent_mask
+                dset = data[...][:, mask]
             elif name.lower() == 'label':
                 for evt in evt_range:
                     start = chunks[evt - 1]
@@ -174,13 +177,9 @@ def lgn(ctx):
                     # defn slices outside use to enable diffs between dsets:
                     dset_idx = (evt - 1, slice(None, num_in_jet),)
                     dset[dset_idx] = 1
+            else:
+                dset = data
 
-            # elif name is 'label':
-            #     for evt in range(1, num_evts + 1):
-            #         start = chunks[evt - 1]
-            #         stop = chunks[evt]
-            #         num_in_jet = stop - start
-            
 
 @format.command()
 @click.pass_context
