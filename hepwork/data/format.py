@@ -50,12 +50,13 @@ def format(ctx, in_path, out_dir, overwrite):
         ctx.obj['in_path'] = in_path
         ctx.obj['out_path'] = out_path
         ctx.obj['pmu'] = f_temp['vpmu']
+        ctx.obj['parent'] = f_in['table/columns/parent/data'][...]
 
     @ctx.call_on_close
     def cleanup():
         # deleting temporary file holding virtual pmu dset
         f_temp.close()
-        os.remove(tmp_path)
+        # os.remove(tmp_path)
 
 @format.command()
 @click.pass_context
@@ -64,6 +65,7 @@ def lgn(ctx):
     in_path = ctx.obj['in_path']
     out_path = ctx.obj['out_path']
     pmu = ctx.obj['pmu']
+    is_parent = ctx.obj['parent']
     evt_cts = ctx.obj['evt_cts'] 
     # counting and finding locations of particle / event splits
     num_evts = len(evt_cts)
@@ -82,30 +84,23 @@ def lgn(ctx):
         # 'is_signal': {
         #     'shape': (num_evts,),
         #     'compression': None,
-        #     'shuffle': False,
-        #     'dtype': '<i2'},
+        #     'shuffle': False, #     'dtype': '<i2'},
         # 'jet_pt': {
         #     'data': jet_pt,
         #     'shape': (num_evts,),
         #     'compression': None,
         #     'shuffle': False,
         #     'dtype': '<f8',},
-        # 'truth_Pmu': {
-        #     'shape': (num_evts, 4),
-        #     'compression': None,
-        #     'shuffle': False,
-        #     'slice': (),
-        #     'dtype': '<f8',},
 
         # # dataset properties relating to jet constituents
-        'label': {
-            'data': np.ones(200, dtype='<i2'),
-            'shape': (num_evts, 200),
-            'compression': 'lzf',
-            'shuffle': True,
-            'slice': (),
-            'chunk_size': (1, 200),
-            'dtype': '<i2',},
+        # 'label': {
+        #     'data': np.ones(200, dtype='<i2'),
+        #     'shape': (num_evts, 200),
+        #     'compression': 'lzf',
+        #     'shuffle': True,
+        #     'slice': (),
+        #     'chunk_size': (1, 200),
+        #     'dtype': '<i2',},
         # 'mass': {
         #     'shape': (num_evts, 200),
         #     'compression': 'lzf',
@@ -116,10 +111,20 @@ def lgn(ctx):
             'data': pmu,
             'shape': (num_evts, 200, 4),
             'compression': 'lzf',
+            'chunk_size': (1, 200, 4),
             'shuffle': True,
             'slice': (slice(None),),
-            'chunk_size': (1, 200, 4),
-            'dtype': '<f8',},
+            'dtype': '<f8',
+
+            'parent': {
+                'name': 'truth_Pmu',
+                'shape': (num_evts, 4),
+                'compression': None,
+                'chunk_size': None,
+                'shuffle': False,
+                'slice': (),
+                'dtype': '<f8',},
+            },
     }
 
     # writing the datasets out to file
@@ -141,16 +146,26 @@ def lgn(ctx):
             # TODO: make this DRY without if within for
             evt_range = range(1, num_evts + 1)
             if name.lower() == 'pmu':
+                parent = info['parent']
+                f_out.create_dataset(
+                    parent['name'], shape=parent['shape'],
+                    chunks=parent['chunk_size'],
+                    compression=parent['compression'],
+                    shuffle=parent['shuffle'])
+                parent_dset = f_out[parent['name']]
+                parent_slc = parent['slice']
                 for evt in evt_range:
                     # TODO: use np.ma mask arrays to identify parent pcl
                     start = chunks[evt - 1]
                     stop = chunks[evt]
-                    num_in_jet = stop - start
+                    num_in_jet = stop - start - 1
+                    parent_mask = is_parent[start:stop]
+                    child_mask = parent_mask == False
                     # defn slices outside use to enable diffs between dsets:
                     dset_idx = (evt - 1, slice(None, num_in_jet),) + slc
                     dsrc_idx = slc + (slice(start, stop),)
                     # pmu shape has to be transposed
-                    dset[dset_idx] = data[dsrc_idx].T
+                    dset[dset_idx] = data[dsrc_idx][:, child_mask].T
             elif name.lower() == 'label':
                 for evt in evt_range:
                     start = chunks[evt - 1]
