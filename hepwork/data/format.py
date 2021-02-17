@@ -2,7 +2,6 @@ import os
 
 import click
 import h5py
-import vaex as vpd
 import numpy as np
 
 @click.group()
