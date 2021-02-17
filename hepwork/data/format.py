@@ -30,30 +30,55 @@ def format(ctx, in_path, out_dir, tag_mcpid, overwrite):
     # extracting data and passing it to context for subcommands:
     dkey = lambda dname: 'table/columns/' + dname + '/data'
     with h5py.File(in_path, 'r') as f_in:
-        # create virtual dataset stacking the 4-momenta for easy access
+        # counting the number of particles per event
+        evts, evt_cts = np.unique(f_in[dkey('event')], return_counts=True)
+        num_evts = len(evt_cts)
+        parent = f_in[dkey('parent')][...]
+
+        # check that the number of parents is equal to number of events
+        if (num_evts != np.sum(parent, dtype=int)):
+            raise ValueError(
+                "Mismatch between number of parents and number of jets")
+
+        # STORE DATA IN TEMP FILE:
+        # temp file creation
+        tmp_path = out_dir + '/.tmp'
+        f_temp = h5py.File(tmp_path, 'w', libver='latest')
+        # pmu virtual dset source defn and stacking in layout
+        pmu = {'energy': None, 'px': None, 'py': None, 'pz': None}
         pmu_src = []
-        for name in ['energy', 'px', 'py', 'pz']:
-            pmu_src.append(h5py.VirtualSource(f_in[dkey(name)]))
+        for name in pmu:
+            pmu[name] = f_in[dkey(name)] # saving in dict for other calcs
+            pmu_src.append(h5py.VirtualSource(pmu[name]))
         pmu_lyt = h5py.VirtualLayout(shape=(4,)+pmu_src[0].shape, dtype='<f8')
         for i in range(len(pmu_src)):
             pmu_lyt[i, :] = pmu_src[i][:]
+        # writing data out
+        f_temp.create_virtual_dataset('vpmu', pmu_lyt) # stacked pmu
+        f_temp.create_dataset( # jet pTs (using parent pcl pT)
+            name='pt', dtype=pmu['px'].dtype, shape=(num_evts,),
+            data=np.sqrt(pmu['px'][parent] ** 2 + pmu['py'][parent] ** 2))
 
-        # writing out virtual pmu to temporary file
-        tmp_path = out_dir + '/.tmp'
-        f_temp = h5py.File(tmp_path, 'w', libver='latest')
-        f_temp.create_virtual_dataset('vpmu', pmu_lyt)
+        mass_sq = (pmu['energy'][...] ** 2
+                   - pmu['px'][...] ** 2
+                   - pmu['py'][...] ** 2
+                   - pmu['pz'][...] ** 2)
+        mass_sq = np.where(mass_sq > 0.0, mass_sq, 0.0)
+        f_temp.create_dataset( # mass of constituents
+            name='mass', dtype=pmu['px'].dtype, shape=pmu['px'].shape,
+            data=np.sqrt(mass_sq))
+        del mass_sq
 
-        # counting the number of particles per event
-        evts, evt_cts = np.unique(f_in[dkey('event')], return_counts=True)
-        parent = f_in[dkey('parent')][...]
+        # STORE DATA IN CONTEXT OBJ:
         mcpid = f_in[dkey('mcpid')]
         is_signal = mcpid[parent] == tag_mcpid
-
         # export context to subcommands
         ctx.obj['evt_cts'] = evt_cts
         ctx.obj['in_path'] = in_path
         ctx.obj['out_path'] = out_path
         ctx.obj['pmu'] = f_temp['vpmu']
+        ctx.obj['pt'] = f_temp['pt']
+        ctx.obj['mass'] = f_temp['mass']
         ctx.obj['parent'] = parent
         ctx.obj['is_signal'] = is_signal
 
@@ -70,14 +95,17 @@ def lgn(ctx):
     in_path = ctx.obj['in_path']
     out_path = ctx.obj['out_path']
     pmu = ctx.obj['pmu']
+    pt = ctx.obj['pt']
+    mass = ctx.obj['mass']
     parent_mask = ctx.obj['parent']
     is_signal = ctx.obj['is_signal']
     evt_cts = ctx.obj['evt_cts'] 
+
     # counting and finding locations of particle / event splits
     num_evts = len(evt_cts)
     num_pcls = np.sum(evt_cts)
-    chunks = np.cumsum(evt_cts)
-    chunks = np.insert(chunks, 0, 0)
+    chops = np.cumsum(evt_cts)
+    chops = np.insert(chops, 0, 0)
 
     # dataset properties in easy to change dict interface
     dsets = {
@@ -98,12 +126,14 @@ def lgn(ctx):
             'shuffle': False,
             'slice': (),
             'dtype': '<i2'},
-        # 'jet_pt': {
-        #     'data': jet_pt,
-        #     'shape': (num_evts,),
-        #     'compression': None,
-        #     'shuffle': False,
-        #     'dtype': '<f8',},
+        'jet_pt': {
+            'data': pt,
+            'shape': (num_evts,),
+            'compression': None,
+            'chunk_size': None,
+            'shuffle': False,
+            'slice': (),
+            'dtype': '<f8',},
         'truth_Pmu': {
             'data': pmu,
             'shape': (num_evts, 4),
@@ -122,12 +152,14 @@ def lgn(ctx):
             'slice': (),
             'chunk_size': (1, 200),
             'dtype': '<i2',},
-        # 'mass': {
-        #     'shape': (num_evts, 200),
-        #     'compression': 'lzf',
-        #     'shuffle': True,
-        #     'chunk_size': (1, 200),
-        #     'dtype': '<f8',},
+        'mass': {
+            'data': mass,
+            'shape': (num_evts, 200),
+            'compression': 'lzf',
+            'shuffle': True,
+            'slice': (),
+            'chunk_size': (1, 200),
+            'dtype': '<f8',},
         'Pmu': {
             'data': pmu,
             'shape': (num_evts, 200, 4),
@@ -137,6 +169,22 @@ def lgn(ctx):
             'chunk_size': (1, 200, 4),
             'dtype': '<f8',},
     }
+    
+    def chop_info(evt, chops):
+        """Returns info for iterating contiguous data chopped into evts.
+
+        Keyword args:
+        evt: (int) event num to get the chop info for
+        chops: (1d array) starting at 0, idxs of evt start / stop points
+
+        Returns:
+        (tuple): start, stop, num final pcls, idx for writing to dest
+        """
+        start = chops[evt - 1]
+        stop = chops[evt]
+        num_in_jet = stop - start - 1
+        dset_idx = (evt - 1, slice(None, num_in_jet),)
+        return (start, stop, num_in_jet, dset_idx,)
 
     # writing the datasets out to file
     with h5py.File(out_path, 'w', libver='latest') as f_out:
@@ -154,31 +202,32 @@ def lgn(ctx):
             # writing out constit properties to each event manually
             # TODO: make this DRY without if within for
             evt_range = range(1, num_evts + 1)
+
             if name.lower() == 'pmu':
                 for evt in evt_range:
-                    start = chunks[evt - 1]
-                    stop = chunks[evt]
-                    num_in_jet = stop - start - 1
+                    start, stop, num_in_jet, dset_idx = chop_info(evt, chops)
+                    dset_idx = dset_idx + slc
                     # select only children
                     mask = parent_mask[start:stop] == False
-                    # defn slices outside use to enable diffs between dsets:
-                    dset_idx = (evt - 1, slice(None, num_in_jet),) + slc
                     dsrc_idx = slc + (slice(start, stop),)
                     # pmu shape has to be transposed
                     dset[dset_idx] = data[dsrc_idx][:, mask].T
             elif name.lower() == 'truth_pmu':
                 mask = parent_mask
-                dset = data[...][:, mask]
+                dset[...] = data[...][:, mask].T
+            elif name.lower() == 'mass':
+                for evt in evt_range:
+                    start, stop, num_in_jet, dset_idx = chop_info(evt, chops)
+                    # select only children
+                    mask = parent_mask[start:stop] == False
+                    dsrc_idx = slice(start, stop)
+                    dset[dset_idx] = data[dsrc_idx][mask]
             elif name.lower() == 'label':
                 for evt in evt_range:
-                    start = chunks[evt - 1]
-                    stop = chunks[evt]
-                    num_in_jet = stop - start
-                    # defn slices outside use to enable diffs between dsets:
-                    dset_idx = (evt - 1, slice(None, num_in_jet),)
+                    start, stop, num_in_jet, dset_idx = chop_info(evt, chops)
                     dset[dset_idx] = 1
             else:
-                dset = data
+                dset[...] = data[...]
 
 
 @format.command()
