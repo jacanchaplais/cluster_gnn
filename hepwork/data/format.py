@@ -17,6 +17,7 @@ def format(ctx, in_path, out_dir, tag_mcpid, overwrite):
     f_name = os.path.basename(in_path)
     f_name, f_ext = os.path.splitext(f_name)
     out_path = out_dir + '/' + f_name + '_c' + f_ext
+    tmp_path = out_dir + '/.' + f_name + '.tmp'
     if os.path.exists(out_path):
         if overwrite:
             os.remove(out_path)
@@ -41,7 +42,6 @@ def format(ctx, in_path, out_dir, tag_mcpid, overwrite):
 
         # STORE DATA IN TEMP FILE:
         # temp file creation
-        tmp_path = out_dir + '/.tmp'
         f_temp = h5py.File(tmp_path, 'w', libver='latest')
         # pmu virtual dset source defn and stacking in layout
         pmu = {'energy': None, 'px': None, 'py': None, 'pz': None}
