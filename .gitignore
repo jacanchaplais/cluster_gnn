@@ -93,3 +93,6 @@ job-logs/
 slurm-*.out
 
 Session.vim
+
+# TODO: track with DVC
+models/
