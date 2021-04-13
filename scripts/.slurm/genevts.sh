@@ -20,7 +20,7 @@ runconfigfile=$simdir/Cards/run_card.dat
 sed -i "s/\([^[\d]]*\).*\(\d*\)\(.*=.*iseed\)/\1 $RANDOM \3/" $runconfigfile
 
 
-# command eine args for script
+# command line args for script
 args="$rundir"
 args="$args -f"
 args="$args --multicore"
