@@ -72,7 +72,6 @@ target/
 # Spyder
 .spyproject/
 
-/notebooks/
 # Jupyter NB Checkpoints
 .ipynb_checkpoints/
 
