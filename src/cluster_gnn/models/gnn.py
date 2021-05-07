@@ -42,18 +42,23 @@ class Interaction(MessagePassing):
 class Net(torch.nn.Module):
     def __init__(self, dim_node=4, dim_edge=0, dim_embed_edge=64, dim_embed_node=16):
         super(Net, self).__init__()
+        dim_embed_edge = 4
         self.conv1 = Interaction(dim_edge, dim_node,
-                                 4, dim_embed_node)
+                                 dim_embed_edge, dim_embed_node)
+        dim_embed_edge = 8
         self.conv2 = Interaction(dim_embed_edge, dim_embed_node,
-                                 8, dim_embed_node)
+                                 dim_embed_edge, dim_embed_node)
+        dim_embed_edge = 16
         self.conv3 = Interaction(dim_embed_edge, dim_embed_node,
-                                 16, dim_embed_node)
+                                 dim_embed_edge, dim_embed_node)
+        dim_embed_edge = 32
         self.conv4 = Interaction(dim_embed_edge, dim_embed_node,
-                                 32, dim_embed_node)
+                                 dim_embed_edge, dim_embed_node)
+        dim_embed_edge = 64
         self.conv5 = Interaction(dim_embed_edge, dim_embed_node,
-                                 64, dim_embed_node)
+                                 dim_embed_edge, dim_embed_node)
         self.classify = torch.nn.Sequential(
-            torch.nn.Linear(64, 1),
+            torch.nn.Linear(dim_embed_edge, 1),
             torch.nn.Sigmoid()
         )
         
