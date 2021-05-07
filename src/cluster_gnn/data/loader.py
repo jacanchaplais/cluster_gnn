@@ -10,7 +10,7 @@ class EventDataset(Dataset):
         super(EventDataset, self).__init__(None, transform, pre_transform)
         self.root_dir = '/home/jlc1n20/projects/cluster_gnn/data/'
         with h5py.File(self.root_dir + '/processed/events.hdf5', 'r') as f:
-            self.len = f['wboson'].attrs['num_evts']
+            self.length = f['wboson'].attrs['num_evts']
         
     @property
     def raw_file_names(self):
@@ -22,7 +22,7 @@ class EventDataset(Dataset):
         return [self.root_dir + '/processed/events.hdf5']
     
     def len(self):
-        return self.len
+        return self.length
     
     @jit(forceobj=True)
     def _get_edges(self, num_nodes):
