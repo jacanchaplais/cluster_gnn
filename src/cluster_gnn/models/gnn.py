@@ -40,18 +40,20 @@ class Interaction(MessagePassing):
 
 
 class Net(torch.nn.Module):
-    def __init__(self, dim_node=4, dim_edge=0, dim_embed_edge=4, dim_embed_node=16):
+    def __init__(self, dim_node=4, dim_edge=0, dim_embed_edge=64, dim_embed_node=16):
         super(Net, self).__init__()
         self.conv1 = Interaction(dim_edge, dim_node,
-                                 dim_embed_edge, dim_embed_node)
+                                 4, dim_embed_node)
         self.conv2 = Interaction(dim_embed_edge, dim_embed_node,
-                                 dim_embed_edge, dim_embed_node)
+                                 8, dim_embed_node)
         self.conv3 = Interaction(dim_embed_edge, dim_embed_node,
-                                 dim_embed_edge, dim_embed_node)
+                                 16, dim_embed_node)
         self.conv4 = Interaction(dim_embed_edge, dim_embed_node,
-                                 dim_embed_edge, dim_embed_node)
+                                 32, dim_embed_node)
+        self.conv5 = Interaction(dim_embed_edge, dim_embed_node,
+                                 64, dim_embed_node)
         self.classify = torch.nn.Sequential(
-            torch.nn.Linear(dim_embed_edge, 1),
+            torch.nn.Linear(64, 1),
             torch.nn.Sigmoid()
         )
         
@@ -63,6 +65,7 @@ class Net(torch.nn.Module):
         edge_attrs, node_attrs = self.conv2(node_attrs, data.edge_index, edge_attrs)
         edge_attrs, node_attrs = self.conv3(node_attrs, data.edge_index, edge_attrs)
         edge_attrs, node_attrs = self.conv4(node_attrs, data.edge_index, edge_attrs)
+        edge_attrs, node_attrs = self.conv5(node_attrs, data.edge_index, edge_attrs)
         
         return self.classify(edge_attrs)
 
