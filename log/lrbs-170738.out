@@ -1,0 +1,63 @@
+Running SLURM prolog script on indigo53.cluster.local
+===============================================================================
+Job started on Mon 10 May 12:53:36 BST 2021
+Job ID          : 170738
+Job name        : lrbs
+WorkDir         : /mainfs/home/jlc1n20/projects/cluster_gnn
+Command         : /mainfs/home/jlc1n20/projects/cluster_gnn/scripts/sub.sh
+Partition       : gpu
+Num hosts       : 1
+Num cores       : 1
+Num of tasks    : 1
+Hosts allocated : indigo53
+Job Output Follows ...
+===============================================================================
+  0%|          | 0/2813 [00:00<?, ?it/s]  0%|          | 0/2813 [00:08<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/jlc1n20/projects/cluster_gnn/scripts/train.py", line 46, in <module>
+    tot_loss += train(data.to(device))
+  File "/home/jlc1n20/projects/cluster_gnn/scripts/train.py", line 35, in train
+    edge_pred = model(data)
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 70, in forward
+    edge_attrs, node_attrs = self.conv3(node_attrs, data.edge_index, edge_attrs)
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 23, in forward
+    return self.propagate(
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch_geometric/nn/conv/message_passing.py", line 237, in propagate
+    out = self.message(**msg_kwargs)
+  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 34, in message
+    self.edge_embed = self.mlp_edge(recv_send)
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/container.py", line 119, in forward
+    input = module(input)
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/linear.py", line 94, in forward
+    return F.linear(input, self.weight, self.bias)
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/functional.py", line 1753, in linear
+    return torch._C._nn.linear(input, weight, bias)
+RuntimeError: CUDA out of memory. Tried to allocate 1.27 GiB (GPU 0; 15.78 GiB total capacity; 14.26 GiB already allocated; 281.50 MiB free; 14.27 GiB reserved in total by PyTorch)
+slurmstepd: error: Pid 66155 is still in the cpuset step cgroup.  It might be left uncleaned after the job.
+==============================================================================
+Running epilogue script on indigo53.
+
+Submit time  : 2021-05-10T12:53:36
+Start time   : 2021-05-10T12:53:36
+End time     : 2021-05-10T12:55:06
+Elapsed time : 00:01:30 (Timelimit=2-00:00:00)
+
+Job ID: 170738
+Cluster: i5
+User/Group: jlc1n20/fp
+State: FAILED (exit code 1)
+Cores: 1
+CPU Utilized: 00:00:13
+CPU Efficiency: 14.44% of 00:01:30 core-walltime
+Job Wall-clock time: 00:01:30
+Memory Utilized: 1.00 GB
+Memory Efficiency: 2.50% of 40.00 GB
+

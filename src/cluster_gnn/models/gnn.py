@@ -18,14 +18,14 @@ class Interaction(MessagePassing):
             torch.nn.ReLU(),
             torch.nn.Linear(out_node, out_node, bias=True)
         )
-        
+
     def forward(self, x, edge_index, edge_attrs):
         return self.propagate(
             x=x,
             edge_index=edge_index,
             edge_attrs=edge_attrs
         )
-    
+
     def message(self, x_i, x_j, edge_index, edge_attrs):
         recv_send = [x_i, x_j]
         if edge_attrs is not None:
@@ -33,44 +33,45 @@ class Interaction(MessagePassing):
         recv_send = torch.cat(recv_send, dim=1)
         self.edge_embed = self.mlp_edge(recv_send)
         return self.edge_embed
-    
+
     def update(self, aggr_out, x):
         node_embed = self.mlp_node(torch.cat([x, aggr_out], dim=1))
         return (self.edge_embed, node_embed)
 
 
 class Net(torch.nn.Module):
-    def __init__(self, dim_node=4, dim_edge=0, dim_embed_edge=64, dim_embed_node=16):
+    def __init__(self, dim_node=4, dim_edge=0,
+                 dim_embed_edge=64, dim_embed_node=32, final_bias=True):
         super(Net, self).__init__()
-        dim_embed_edge = 4
         self.conv1 = Interaction(dim_edge, dim_node,
                                  dim_embed_edge, dim_embed_node)
-        dim_embed_edge = 8
         self.conv2 = Interaction(dim_embed_edge, dim_embed_node,
                                  dim_embed_edge, dim_embed_node)
-        dim_embed_edge = 16
         self.conv3 = Interaction(dim_embed_edge, dim_embed_node,
                                  dim_embed_edge, dim_embed_node)
-        dim_embed_edge = 32
         self.conv4 = Interaction(dim_embed_edge, dim_embed_node,
                                  dim_embed_edge, dim_embed_node)
-        dim_embed_edge = 64
-        self.conv5 = Interaction(dim_embed_edge, dim_embed_node,
-                                 dim_embed_edge, dim_embed_node)
-        self.classify = torch.nn.Sequential(
-            torch.nn.Linear(dim_embed_edge, 1),
-            torch.nn.Sigmoid()
-        )
-        
+        # self.conv5 = Interaction(dim_embed_edge, dim_embed_node,
+        #                          dim_embed_edge, dim_embed_node)
+        # self.conv6 = Interaction(dim_embed_edge, dim_embed_node,
+        #                          dim_embed_edge, dim_embed_node)
+        # self.conv7 = Interaction(dim_embed_edge, dim_embed_node,
+        #                          dim_embed_edge, dim_embed_node)
+        # self.conv8 = Interaction(dim_embed_edge, dim_embed_node,
+        #                          dim_embed_edge, dim_embed_node)
+        self.classify = torch.nn.Linear(dim_embed_edge, 1, bias=final_bias)
+
     def forward(self, data):
         node_attrs = data.x
         edge_attrs = data.edge_attr
-        
+
         edge_attrs, node_attrs = self.conv1(node_attrs, data.edge_index, edge_attrs)
         edge_attrs, node_attrs = self.conv2(node_attrs, data.edge_index, edge_attrs)
         edge_attrs, node_attrs = self.conv3(node_attrs, data.edge_index, edge_attrs)
         edge_attrs, node_attrs = self.conv4(node_attrs, data.edge_index, edge_attrs)
-        edge_attrs, node_attrs = self.conv5(node_attrs, data.edge_index, edge_attrs)
-        
-        return self.classify(edge_attrs)
+        # edge_attrs, node_attrs = self.conv5(node_attrs, data.edge_index, edge_attrs)
+        # edge_attrs, node_attrs = self.conv6(node_attrs, data.edge_index, edge_attrs)
+        # edge_attrs, node_attrs = self.conv7(node_attrs, data.edge_index, edge_attrs)
+        # edge_attrs, node_attrs = self.conv8(node_attrs, data.edge_index, edge_attrs)
 
+        return self.classify(edge_attrs)

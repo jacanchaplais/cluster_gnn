@@ -1,0 +1,52 @@
+Running SLURM prolog script on indigo58.cluster.local
+===============================================================================
+Job started on Sun  9 May 11:14:51 BST 2021
+Job ID          : 168310
+Job name        : edgebce
+WorkDir         : /mainfs/home/jlc1n20/projects/cluster_gnn
+Command         : /mainfs/home/jlc1n20/projects/cluster_gnn/scripts/sub_bce.sh
+Partition       : gpu
+Num hosts       : 1
+Num cores       : 1
+Num of tasks    : 1
+Hosts allocated : indigo58
+Job Output Follows ...
+===============================================================================
+  0%|          | 0/90000 [00:00<?, ?it/s]  0%|          | 1/90000 [00:01<38:47:19,  1.55s/it]  0%|          | 2/90000 [00:01<18:26:53,  1.36it/s]  0%|          | 3/90000 [00:01<11:40:52,  2.14it/s]  0%|          | 5/90000 [00:02<6:38:49,  3.76it/s]   0%|          | 6/90000 [00:02<6:17:44,  3.97it/s]  0%|          | 7/90000 [00:02<5:20:59,  4.67it/s]  0%|          | 8/90000 [00:02<5:03:51,  4.94it/s]  0%|          | 9/90000 [00:02<5:03:21,  4.94it/s]  0%|          | 10/90000 [00:03<5:02:10,  4.96it/s]  0%|          | 11/90000 [00:03<5:14:05,  4.78it/s]  0%|          | 12/90000 [00:03<6:43:42,  3.72it/s]  0%|          | 13/90000 [00:03<6:23:16,  3.91it/s]  0%|          | 14/90000 [00:04<6:13:41,  4.01it/s]  0%|          | 16/90000 [00:04<4:18:21,  5.80it/s]  0%|          | 17/90000 [00:04<4:11:35,  5.96it/s]  0%|          | 18/90000 [00:05<7:06:41,  3.51it/s]
+Traceback (most recent call last):
+  File "/home/jlc1n20/projects/cluster_gnn/scripts/train_bce.py", line 31, in <module>
+    tot_loss += train(data.to(device))
+  File "/home/jlc1n20/projects/cluster_gnn/scripts/train_bce.py", line 21, in train
+    edge_pred = torch.sigmoid(model(data))
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 73, in forward
+    edge_attrs, node_attrs = self.conv7(node_attrs, data.edge_index, edge_attrs)
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 23, in forward
+    return self.propagate(
+  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch_geometric/nn/conv/message_passing.py", line 237, in propagate
+    out = self.message(**msg_kwargs)
+  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 33, in message
+    recv_send = torch.cat(recv_send, dim=1)
+RuntimeError: CUDA out of memory. Tried to allocate 968.00 MiB (GPU 0; 15.78 GiB total capacity; 11.24 GiB already allocated; 231.50 MiB free; 14.31 GiB reserved in total by PyTorch)
+==============================================================================
+Running epilogue script on indigo58.
+
+Submit time  : 2021-05-09T11:14:50
+Start time   : 2021-05-09T11:14:51
+End time     : 2021-05-09T11:15:05
+Elapsed time : 00:00:14 (Timelimit=1-00:00:00)
+
+Job ID: 168310
+Cluster: i5
+User/Group: jlc1n20/fp
+State: FAILED (exit code 1)
+Cores: 1
+CPU Utilized: 00:00:10
+CPU Efficiency: 71.43% of 00:00:14 core-walltime
+Job Wall-clock time: 00:00:14
+Memory Utilized: 2.06 MB
+Memory Efficiency: 0.01% of 40.00 GB
+

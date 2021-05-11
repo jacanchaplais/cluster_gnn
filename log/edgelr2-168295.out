@@ -1,0 +1,34 @@
+Running SLURM prolog script on indigo54.cluster.local
+===============================================================================
+Job started on Sun  9 May 10:28:16 BST 2021
+Job ID          : 168295
+Job name        : edgelr2
+WorkDir         : /mainfs/home/jlc1n20/projects/cluster_gnn
+Command         : /mainfs/home/jlc1n20/projects/cluster_gnn/scripts/sub_lr.sh
+Partition       : gpu
+Num hosts       : 1
+Num cores       : 1
+Num of tasks    : 1
+Hosts allocated : indigo54
+Job Output Follows ...
+===============================================================================
+slurmstepd: error: *** JOB 168295 ON indigo54 CANCELLED AT 2021-05-09T10:28:38 ***
+==============================================================================
+Running epilogue script on indigo54.
+
+Submit time  : 2021-05-09T10:28:16
+Start time   : 2021-05-09T10:28:16
+End time     : 2021-05-09T10:28:37
+Elapsed time : 00:00:21 (Timelimit=1-00:00:00)
+
+Job ID: 168295
+Cluster: i5
+User/Group: jlc1n20/fp
+State: CANCELLED (exit code 0)
+Cores: 1
+CPU Utilized: 00:00:00
+CPU Efficiency: 0.00% of 00:00:21 core-walltime
+Job Wall-clock time: 00:00:21
+Memory Utilized: 2.06 MB
+Memory Efficiency: 0.01% of 40.00 GB
+

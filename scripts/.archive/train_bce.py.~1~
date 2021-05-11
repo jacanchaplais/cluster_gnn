@@ -1,0 +1,36 @@
+import torch
+from torch_geometric.data import DataLoader
+from tqdm import tqdm
+
+from cluster_gnn.models import gnn
+from cluster_gnn.data import loader as loadset
+from cluster_gnn.loss.classify import bce_loss as criterion
+
+NUM_EPOCHS = 15
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = gnn.Net().to(device)
+optimiser = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+# use a loss to penalise false negatives
+dataset = loadset.EventDataset()
+dataset = dataset[0:int(0.9 * dataset.len())] # 90% for training
+loader = DataLoader(dataset, shuffle=True, batch_size=1)
+
+def train(data):
+    optimiser.zero_grad()
+    edge_pred = torch.sigmoid(model(data))
+    loss = criterion(edge_pred, data.y.view(-1, 1),
+            false_neg_weight=torch.tensor(200.0))
+    loss.backward()
+    optimiser.step()
+    return loss.detach().item()
+
+model.train()
+for epoch in range(NUM_EPOCHS):
+    tot_loss = 0.0
+    for num, data in enumerate(tqdm(loader)):
+        tot_loss += train(data.to(device))
+    av_loss = tot_loss / float(num)
+    print('Epoch: {}, Loss: {:.5f}'.format(epoch, av_loss))
+    torch.save(model, '/home/jlc1n20/projects/cluster_gnn/models/bcel8.pt')
+
