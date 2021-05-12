@@ -1,13 +1,10 @@
 #!/bin/bash
 
 #SBATCH -p gpu
-#SBATCH --gres=gpu:1
-#SBATCH --time=24:00:00
-#SBATCH --job-name=lr14
+#SBATCH --gres=gpu:2
+#SBATCH --time=02:00:00
+#SBATCH --job-name=prof
 #SBATCH --output=/home/jlc1n20/projects/cluster_gnn/log/%x-%j.out
-#SBATCH --mem=20G
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=jlc1n20@soton.ac.uk
 
 source activate PyG
 

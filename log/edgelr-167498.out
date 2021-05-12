@@ -1,61 +1,0 @@
-Running SLURM prolog script on indigo60.cluster.local
-===============================================================================
-Job started on Sat  8 May 22:03:24 BST 2021
-Job ID          : 167498
-Job name        : edgelr
-WorkDir         : /mainfs/home/jlc1n20/projects/cluster_gnn
-Command         : /mainfs/home/jlc1n20/projects/cluster_gnn/scripts/sub_lr.sh
-Partition       : gpu
-Num hosts       : 1
-Num cores       : 1
-Num of tasks    : 1
-Hosts allocated : indigo60
-Job Output Follows ...
-===============================================================================
-  0%|          | 0/90000 [00:00<?, ?it/s]  0%|          | 1/90000 [00:02<67:01:08,  2.68s/it]  0%|          | 2/90000 [00:02<30:00:38,  1.20s/it]  0%|          | 3/90000 [00:02<17:56:25,  1.39it/s]  0%|          | 5/90000 [00:03<9:06:48,  2.74it/s]   0%|          | 6/90000 [00:03<7:34:40,  3.30it/s]  0%|          | 6/90000 [00:03<15:19:30,  1.63it/s]
-Epoch 0:
-Traceback (most recent call last):
-  File "/home/jlc1n20/projects/cluster_gnn/scripts/train_lr2.py", line 25, in <module>
-    edge_pred = model(data)
-  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
-    result = self.forward(*input, **kwargs)
-  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 74, in forward
-    edge_attrs, node_attrs = self.conv8(node_attrs, data.edge_index, edge_attrs)
-  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
-    result = self.forward(*input, **kwargs)
-  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 23, in forward
-    return self.propagate(
-  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch_geometric/nn/conv/message_passing.py", line 237, in propagate
-    out = self.message(**msg_kwargs)
-  File "/mainfs/home/jlc1n20/projects/cluster_gnn/src/cluster_gnn/models/gnn.py", line 34, in message
-    self.edge_embed = self.mlp_edge(recv_send)
-  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
-    result = self.forward(*input, **kwargs)
-  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/container.py", line 119, in forward
-    input = module(input)
-  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/module.py", line 889, in _call_impl
-    result = self.forward(*input, **kwargs)
-  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/modules/linear.py", line 94, in forward
-    return F.linear(input, self.weight, self.bias)
-  File "/scratch/jlc1n20/miniconda3/envs/PyG/lib/python3.8/site-packages/torch/nn/functional.py", line 1753, in linear
-    return torch._C._nn.linear(input, weight, bias)
-RuntimeError: CUDA out of memory. Tried to allocate 320.00 MiB (GPU 0; 15.78 GiB total capacity; 13.83 GiB already allocated; 63.50 MiB free; 14.48 GiB reserved in total by PyTorch)
-==============================================================================
-Running epilogue script on indigo60.
-
-Submit time  : 2021-05-08T18:16:18
-Start time   : 2021-05-08T22:03:24
-End time     : 2021-05-08T22:04:42
-Elapsed time : 00:01:18 (Timelimit=1-00:00:00)
-
-Job ID: 167498
-Cluster: i5
-User/Group: jlc1n20/fp
-State: FAILED (exit code 1)
-Cores: 1
-CPU Utilized: 00:00:14
-CPU Efficiency: 17.95% of 00:01:18 core-walltime
-Job Wall-clock time: 00:01:18
-Memory Utilized: 1.01 GB
-Memory Efficiency: 0.00% of 0.00 MB
-

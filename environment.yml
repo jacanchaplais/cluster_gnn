@@ -1,0 +1,32 @@
+name: PyG
+
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  - cudatoolkit=11.1
+  - pip
+  - python=3.8
+  - jupyter
+  - pytorch=1.8
+  - torchaudio # necessary?
+  - torchvision # necessary?
+  - torchmetrics
+  - pytorch-lightning
+  - tensorboard
+  - numpy
+  - networkx
+  - tqdm
+  - scipy
+  - python-louvain
+  - scikit-learn
+  - numba
+  - requests
+  - pandas
+  - rdflib
+  - h5py
+  - googledrivedownloader
+  - ase
+  - jinja2

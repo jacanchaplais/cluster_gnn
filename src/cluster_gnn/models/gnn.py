@@ -1,5 +1,7 @@
 import torch
-from torch_geometric.nn import MessagePassing
+import torchmetrics
+from torch_geometric.nn import MessagePassing, Sequential
+import pytorch_lightning as pl
 
 class Interaction(MessagePassing):
     def __init__(self, in_edge, in_node, out_edge, out_node):
@@ -39,39 +41,84 @@ class Interaction(MessagePassing):
         return (self.edge_embed, node_embed)
 
 
-class Net(torch.nn.Module):
-    def __init__(self, dim_node=4, dim_edge=0,
-                 dim_embed_edge=64, dim_embed_node=32, final_bias=True):
+class Net(pl.LightningModule):
+    def __init__(self, dim_node: int = 4, dim_edge: int = 0,
+                 dim_embed_edge: int = 64, dim_embed_node: int = 32,
+                 num_hidden: int = 3, final_bias: bool = False,
+                 pos_weight: float = 80.0,
+                 learn_rate: float = 1e-4, weight_decay: float = 5e-4,
+                 infer_thresh: float = 0.5):
         super(Net, self).__init__()
-        self.conv1 = Interaction(dim_edge, dim_node,
-                                 dim_embed_edge, dim_embed_node)
-        self.conv2 = Interaction(dim_embed_edge, dim_embed_node,
-                                 dim_embed_edge, dim_embed_node)
-        self.conv3 = Interaction(dim_embed_edge, dim_embed_node,
-                                 dim_embed_edge, dim_embed_node)
-        self.conv4 = Interaction(dim_embed_edge, dim_embed_node,
-                                 dim_embed_edge, dim_embed_node)
-        # self.conv5 = Interaction(dim_embed_edge, dim_embed_node,
-        #                          dim_embed_edge, dim_embed_node)
-        # self.conv6 = Interaction(dim_embed_edge, dim_embed_node,
-        #                          dim_embed_edge, dim_embed_node)
-        # self.conv7 = Interaction(dim_embed_edge, dim_embed_node,
-        #                          dim_embed_edge, dim_embed_node)
-        # self.conv8 = Interaction(dim_embed_edge, dim_embed_node,
-        #                          dim_embed_edge, dim_embed_node)
+        # define the architecture
+        self.encode = Interaction(dim_edge, dim_node,
+                                  dim_embed_edge, dim_embed_node)
+        self.message = Sequential('x, edge_index, edge_attrs', [
+            (Interaction(dim_embed_edge, dim_embed_node,
+                         dim_embed_edge, dim_embed_node),
+             'x, edge_index, edge_attrs -> edge_attrs, x')
+             for i in range(num_hidden)
+             ])
         self.classify = torch.nn.Linear(dim_embed_edge, 1, bias=final_bias)
+        # optimiser args
+        self.lr = learn_rate
+        self.decay = weight_decay
+        # configure the loss
+        self.criterion = torch.nn.BCEWithLogitsLoss(
+                pos_weight=torch.tensor(pos_weight, device=self.device),
+                reduction='mean')
+        # add metrics
+        self.train_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
+        # self.train_AUC = torchmetrics.AUROC()
+        self.val_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
+        # self.val_ROC = torchmetrics.ROC()
+        # self.val_AUC = torchmetrics.AUROC()
 
-    def forward(self, data):
-        node_attrs = data.x
-        edge_attrs = data.edge_attr
+    def forward(self, data, sigmoid=True):
+        node_attrs, edge_attrs = data.x, data.edge_attr
+        edge_attrs, node_attrs = self.encode(node_attrs, data.edge_index,
+                                             edge_attrs)
+        edge_attrs, node_attrs = self.message(node_attrs, data.edge_index,
+                                              edge_attrs)
+        pred = self.classify(edge_attrs)
+        if sigmoid:
+            pred = torch.sigmoid(pred)
+        return pred
 
-        edge_attrs, node_attrs = self.conv1(node_attrs, data.edge_index, edge_attrs)
-        edge_attrs, node_attrs = self.conv2(node_attrs, data.edge_index, edge_attrs)
-        edge_attrs, node_attrs = self.conv3(node_attrs, data.edge_index, edge_attrs)
-        edge_attrs, node_attrs = self.conv4(node_attrs, data.edge_index, edge_attrs)
-        # edge_attrs, node_attrs = self.conv5(node_attrs, data.edge_index, edge_attrs)
-        # edge_attrs, node_attrs = self.conv6(node_attrs, data.edge_index, edge_attrs)
-        # edge_attrs, node_attrs = self.conv7(node_attrs, data.edge_index, edge_attrs)
-        # edge_attrs, node_attrs = self.conv8(node_attrs, data.edge_index, edge_attrs)
+    def training_step(self, batch, batch_idx):
+        edge_pred = self(batch, sigmoid=False)
+        loss = self.criterion(edge_pred, batch.y.view(-1, 1))
+        self.log('train_loss', loss, logger=True)
+        return {'loss': loss,
+                'preds': torch.sigmoid(edge_pred),
+                'target': batch.y.view(-1, 1).int()}
 
-        return self.classify(edge_attrs)
+    def training_step_end(self, outputs):
+        self.train_ACC(outputs['preds'], outputs['target'])
+        self.log('train_acc', self.train_ACC, prog_bar=True,
+                 logger=True)
+        return outputs['loss']
+
+    def validation_step(self, batch, batch_idx):
+        edge_pred = self(batch, sigmoid=False)
+        loss = self.criterion(edge_pred, batch.y.view(-1, 1))
+        return {'loss': loss,
+                'preds': torch.sigmoid(edge_pred),
+                'target': batch.y.view(-1, 1).int()}
+
+    def validation_step_end(self, outputs):
+        self.val_ACC(outputs['preds'], outputs['target'])
+        self.log('val_acc', self.val_ACC, logger=True)
+        # self.val_ROC(outputs['preds'], outputs['target'])
+        # self.log('val_roc', self.val_ROC, logger=True)
+        # self.val_AUC(outputs['preds'], outputs['target'])
+        # self.log('val_auc', self.val_AUC, logger=True)
+        self.log('val_loss', outputs['loss'], logger=True)
+        return outputs['loss']
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+                self.parameters(),
+                lr=self.lr,
+                weight_decay=self.decay
+            )
+        return optimizer
