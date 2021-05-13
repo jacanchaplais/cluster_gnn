@@ -1,9 +1,9 @@
 import torch
 import torchmetrics
-from torch_geometric.nn import MessagePassing, Sequential
+import torch_geometric as pyg
 import pytorch_lightning as pl
 
-class Interaction(MessagePassing):
+class Interaction(pyg.nn.MessagePassing):
     def __init__(self, in_edge, in_node, out_edge, out_node):
         super(Interaction, self).__init__(
             aggr='add',
@@ -52,7 +52,7 @@ class Net(pl.LightningModule):
         # define the architecture
         self.encode = Interaction(dim_edge, dim_node,
                                   dim_embed_edge, dim_embed_node)
-        self.message = Sequential('x, edge_index, edge_attrs', [
+        self.message = pyg.nn.Sequential('x, edge_index, edge_attrs', [
             (Interaction(dim_embed_edge, dim_embed_node,
                          dim_embed_edge, dim_embed_node),
              'x, edge_index, edge_attrs -> edge_attrs, x')
@@ -70,8 +70,13 @@ class Net(pl.LightningModule):
         self.train_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
         # self.train_AUC = torchmetrics.AUROC()
         self.val_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
-        # self.val_ROC = torchmetrics.ROC()
-        # self.val_AUC = torchmetrics.AUROC()
+        self.val_PR = torchmetrics.BinnedPrecisionRecallCurve(
+                num_classes=1, num_thresholds=5)
+        self.test_PR = torchmetrics.BinnedPrecisionRecallCurve(
+                num_classes=1, num_thresholds=5)
+        # self.test_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
+        # self.test_ROC = torchmetrics.ROC()
+        # self.test_AUC = torchmetrics.AUROC()
 
     def forward(self, data, sigmoid=True):
         node_attrs, edge_attrs = data.x, data.edge_attr
@@ -113,6 +118,26 @@ class Net(pl.LightningModule):
         # self.val_AUC(outputs['preds'], outputs['target'])
         # self.log('val_auc', self.val_AUC, logger=True)
         self.log('val_loss', outputs['loss'], logger=True)
+        prec, recall, thresh = self.val_PR(outputs['preds'], outputs['target'])
+        for i, t in enumerate(thresh):
+            self.log(f'val_prec/thresh_{t:.3f}', prec[i], logger=True)
+            self.log(f'val_recall/thresh_{t:.3f}', recall[i], logger=True)
+        return outputs['loss']
+
+    def test_step(self, batch, batch_idx):
+        edge_pred = self(batch, sigmoid=False)
+        loss = self.criterion(edge_pred, batch.y.view(-1, 1))
+        return {'loss': loss,
+                'preds': torch.sigmoid(edge_pred),
+                'target': batch.y.view(-1, 1).int()}
+
+    def test_epoch_end(self, outputs):
+        self.test_ACC(outputs['preds'], outputs['target'])
+        self.log('test_acc', self.test_ACC, logger=True)
+        prec, recall, thresh = self.test_PR(outputs['preds'], outputs['target'])
+        for i, t in enumerate(thresh):
+            self.log(f'test_prec/thresh_{t:.3f}', prec[i], logger=True)
+            self.log(f'test_recall/thresh_{t:.3f}', recall[i], logger=True)
         return outputs['loss']
 
     def configure_optimizers(self):

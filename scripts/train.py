@@ -21,12 +21,12 @@ for key, frac in SPLITS.items():
     loaders[key] = DataLoader(
             dataset[slc],
             shuffle=(True if key == 'train' else False),
-            batch_size=2,
+            batch_size=1,
             num_workers=4)
     start = end
 
 model = gnn.Net(num_hidden=7, dim_embed_edge=128, dim_embed_node=128)
-logger = pl.loggers.TensorBoardLogger(LOG_DIR)
+logger = pl.loggers.TensorBoardLogger(MODEL_DIR)
 trainer = pl.Trainer(gpus=4, num_nodes=1, max_epochs=30,
                      progress_bar_refresh_rate=100,
                      logger=logger, default_root_dir=MODEL_DIR,
