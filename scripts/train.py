@@ -22,14 +22,14 @@ for key, frac in SPLITS.items():
             dataset[slc],
             shuffle=(True if key == 'train' else False),
             batch_size=2,
-            num_workers=1)
+            num_workers=4)
     start = end
 
-model = gnn.Net()
+model = gnn.Net(num_hidden=7, dim_embed_edge=128, dim_embed_node=128)
 logger = pl.loggers.TensorBoardLogger(LOG_DIR)
-profiler = pl.profiler.AdvancedProfiler(dirpath=LOG_DIR, filename='prof.txt')
-trainer = pl.Trainer(gpus=2, max_epochs=1, progress_bar_refresh_rate=100,
+trainer = pl.Trainer(gpus=4, num_nodes=1, max_epochs=30,
+                     progress_bar_refresh_rate=100,
                      logger=logger, default_root_dir=MODEL_DIR,
-                     accelerator='ddp', profiler=profiler)
+                     accelerator='ddp')
 trainer.fit(model, loaders['train'], loaders['val'])
 # trainer.test(test_dataloaders=loaders['test'])

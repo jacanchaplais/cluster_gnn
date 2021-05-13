@@ -1,4 +1,4 @@
-name: PyG
+name: ptg
 
 channels:
   - pytorch
@@ -6,11 +6,11 @@ channels:
   - defaults
 
 dependencies:
-  - cudatoolkit=11.1
+  - cudatoolkit=10.2
   - pip
   - python=3.8
   - jupyter
-  - pytorch=1.8
+  - pytorch=1.7
   - torchaudio # necessary?
   - torchvision # necessary?
   - torchmetrics
@@ -30,3 +30,4 @@ dependencies:
   - googledrivedownloader
   - ase
   - jinja2
+  - zenodo_get
