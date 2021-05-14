@@ -1,8 +1,8 @@
+import torch
+from torch_geometric.data import Data, Dataset
+import h5py
 import numpy as np
 from numba import jit
-import h5py
-import torch
-from torch_geometric.data import Data, Dataset, DataLoader
 
 
 class EventDataset(Dataset):
