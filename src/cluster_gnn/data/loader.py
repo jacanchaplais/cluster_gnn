@@ -84,6 +84,8 @@ class GraphDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         if sum(splits.values()) <= 1.0:
             self.splits = splits
+        elif 'train' not in splits or 'val' not in splits:
+            raise ValueError('Splits must contain both train and val')
         else:
             raise ArithmeticError('Sum of splits must not exceed 1.0')
 
