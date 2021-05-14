@@ -8,7 +8,8 @@ ROOT_DIR = '/home/jlc1n20/projects/cluster_gnn/'
 MODEL_DIR = ROOT_DIR + 'models/'
 LOG_DIR = ROOT_DIR + 'log/'
 
-graph_data = loader.GraphDataModule('/home/jlc1n20/projects/cluster_gnn/data/')
+graph_data = loader.GraphDataModule('/home/jlc1n20/projects/cluster_gnn/data/',
+                                    num_workers=4)
 model = gnn.Net(num_hidden=7, dim_embed_edge=128, dim_embed_node=128)
 logger = pl.loggers.TensorBoardLogger(MODEL_DIR)
 trainer = pl.Trainer(gpus=4, num_nodes=1, max_epochs=30,

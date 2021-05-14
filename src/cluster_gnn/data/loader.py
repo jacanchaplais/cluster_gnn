@@ -1,3 +1,5 @@
+from itertools import accumulate
+
 import torch
 from torch_geometric.data import Data, Dataset, DataLoader
 import pytorch_lightning as pl
@@ -73,12 +75,14 @@ class EventDataset(Dataset):
 class GraphDataModule(pl.LightningDataModule):
     def __init__(self,
                  data_dir: str = './data/',
-                 splits = [0.9, 0.05, 0.05],
-                 batch_size: int = 1):
+                 splits = {'train': 0.9, 'val': 0.05, 'test': 0.05},
+                 batch_size: int = 1,
+                 num_workers: int = 1):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
-        if sum(splits) <= 1.0:
+        self.num_workers = num_workers
+        if sum(splits.values()) <= 1.0:
             self.splits = splits
         else:
             raise ArithmeticError('Sum of splits must not exceed 1.0')
@@ -87,15 +91,20 @@ class GraphDataModule(pl.LightningDataModule):
         # stage could be fit, test
         graph_set = EventDataset(self.data_dir)
         num_graphs = graph_set.len()
-        splits = [round(split * float(num_graphs)) for split in self.splits]
-        self.train, self.val, self.test = torch.utils.data.random_split(
-                graph_set, splits)
+        start_idx = 0
+        for key, split in self.splits.items():
+            stop_idx = start_idx + round(split * float(num_graphs))
+            setattr(self, 'graphs_' + key, graph_set[start_idx:stop_idx])
+            start_idx = stop_idx
 
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size=self.batch_size)
+        return DataLoader(self.graphs_train, batch_size=self.batch_size,
+                          shuffle=True, num_workers=self.num_workers)
 
     def val_dataloader(self):
-        return DataLoader(self.val, batch_size=self.batch_size)
+        return DataLoader(self.graphs_val, batch_size=self.batch_size,
+                          num_workers=self.num_workers)
 
     def test_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size)
+        return DataLoader(self.graphs_test, batch_size=self.batch_size,
+                          num_workers=self.num_workers)
