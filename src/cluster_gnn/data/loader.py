@@ -73,7 +73,7 @@ class EventDataset(Dataset):
 class GraphDataModule(pl.LightningDataModule):
     def __init__(self,
                  data_dir: str = './data/',
-                 splits: list[float] = [0.9, 0.05, 0.05],
+                 splits = [0.9, 0.05, 0.05],
                  batch_size: int = 1):
         super().__init__()
         self.data_dir = data_dir
@@ -83,19 +83,19 @@ class GraphDataModule(pl.LightningDataModule):
         else:
             raise ArithmeticError('Sum of splits must not exceed 1.0')
 
-        def setup(self, stage: Optional[str] = None):
-            # stage could be fit, test
-            graph_set = EventDataset(self.data_dir)
-            num_graphs = graph_set.len()
-            splits = [round(split * float(num_graphs)) in self.splits]
-            self.train, self.val, self.test = torch.utils.data.random_split(
-                    graph_set, splits)
+    def setup(self, stage=None):
+        # stage could be fit, test
+        graph_set = EventDataset(self.data_dir)
+        num_graphs = graph_set.len()
+        splits = [round(split * float(num_graphs)) for split in self.splits]
+        self.train, self.val, self.test = torch.utils.data.random_split(
+                graph_set, splits)
 
-        def train_dataloader(self):
-            return DataLoader(self.train, batch_size=self.batch_size)
+    def train_dataloader(self):
+        return DataLoader(self.train, batch_size=self.batch_size)
 
-        def val_dataloader(self):
-            return DataLoader(self.val, batch_size=self.batch_size)
+    def val_dataloader(self):
+        return DataLoader(self.val, batch_size=self.batch_size)
 
-        def test_dataloader(self):
-            return DataLoader(self.test, batch_size=self.batch_size)
+    def test_dataloader(self):
+        return DataLoader(self.test, batch_size=self.batch_size)
