@@ -1,5 +1,3 @@
-import os
-
 import pytorch_lightning as pl
 import optuna
 from optuna.integration import PyTorchLightningPruningCallback
@@ -11,7 +9,7 @@ ROOT_DIR = '/home/jlc1n20/projects/cluster_gnn/'
 MODEL_DIR = ROOT_DIR + '/models/tune/'
 
 def objective(trial):
-    prune_metric = 'val_loss'
+    metric = 'val_f1'
 
     learn_rate = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
     pos_weight = trial.suggest_float("pos_weight", 1.0, 100.0)
@@ -28,7 +26,7 @@ def objective(trial):
                          logger=True, default_root_dir=MODEL_DIR,
                          checkpoint_callback=False,
                          callbacks=[PyTorchLightningPruningCallback(
-                             trial, monitor=prune_metric)],
+                             trial, monitor=metric)],
                          accelerator='ddp')
 
     hyps = {'lr': learn_rate,
@@ -37,11 +35,7 @@ def objective(trial):
     trainer.logger.log_hyperparams(hyps)
     trainer.fit(model, graph_data)
 
-    precision = trainer.callback_metrics['val_prec/thresh_0.500'].item()
-    recall = trainer.callback_metrics['val_recall/thresh_0.500'].item()
-
-    f1 = 2.0 * precision * recall / (precision + recall)
-    return f1
+    return trainer.callback_metrics[metric].item()
 
 pruner = optuna.pruners.MedianPruner()
 

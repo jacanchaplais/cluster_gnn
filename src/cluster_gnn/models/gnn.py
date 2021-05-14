@@ -122,6 +122,11 @@ class Net(pl.LightningModule):
         for i, t in enumerate(thresh):
             self.log(f'val_prec/thresh_{t:.3f}', prec[i], logger=True)
             self.log(f'val_recall/thresh_{t:.3f}', recall[i], logger=True)
+        mid_idx = (len(prec) // 2) + 1
+        precision = prec[mid_idx]
+        recall = rec[mid_idx]
+        f1 = 2.0 * precision * recall / (precision + recall)
+        self.log('val_f1', f1, logger=True)
         return outputs['loss']
 
     def test_step(self, batch, batch_idx):
