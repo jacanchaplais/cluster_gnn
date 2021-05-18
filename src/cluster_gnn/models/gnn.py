@@ -68,15 +68,11 @@ class Net(pl.LightningModule):
                 reduction='mean')
         # add metrics
         self.train_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
-        # self.train_AUC = torchmetrics.AUROC()
+        self.train_F1 = torchmetrics.F1(threshold=infer_thresh)
         self.val_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
+        self.val_F1 = torchmetrics.F1(threshold=infer_thresh)
         self.val_PR = torchmetrics.BinnedPrecisionRecallCurve(
                 num_classes=1, num_thresholds=5)
-        self.test_PR = torchmetrics.BinnedPrecisionRecallCurve(
-                num_classes=1, num_thresholds=5)
-        # self.test_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
-        # self.test_ROC = torchmetrics.ROC()
-        # self.test_AUC = torchmetrics.AUROC()
 
     def forward(self, data, sigmoid=True):
         node_attrs, edge_attrs = data.x, data.edge_attr
@@ -89,19 +85,36 @@ class Net(pl.LightningModule):
             pred = torch.sigmoid(pred)
         return pred
 
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+                self.parameters(),
+                lr=self.lr,
+                weight_decay=self.decay
+            )
+        return optimizer
+
+    def _av_loss(self, outputs):
+        return torch.stack([x['loss'] for x in outputs]).mean()
+
     def training_step(self, batch, batch_idx):
         edge_pred = self(batch, sigmoid=False)
         loss = self.criterion(edge_pred, batch.y.view(-1, 1))
-        self.log('train_loss', loss, logger=True)
         return {'loss': loss,
                 'preds': torch.sigmoid(edge_pred),
                 'target': batch.y.view(-1, 1).int()}
 
     def training_step_end(self, outputs):
         self.train_ACC(outputs['preds'], outputs['target'])
-        self.log('train_acc', self.train_ACC, prog_bar=True,
-                 logger=True)
-        return outputs['loss']
+        self.train_F1(outputs['preds'], outputs['target'])
+        self.log('loss/train_step', outputs['loss'])
+        self.log('acc/train_step', self.train_ACC)
+        self.log('f1/train_step', self.train_F1)
+        return outputs
+
+    def training_epoch_end(self, outputs):
+        self.log('loss/train_epoch', self._av_loss(outputs))
+        self.log('acc/train_epoch', self.train_ACC.compute())
+        self.log('f1/train_epoch', self.train_F1.compute())
 
     def validation_step(self, batch, batch_idx):
         edge_pred = self(batch, sigmoid=False)
@@ -112,43 +125,19 @@ class Net(pl.LightningModule):
 
     def validation_step_end(self, outputs):
         self.val_ACC(outputs['preds'], outputs['target'])
-        self.log('val_acc', self.val_ACC, logger=True)
-        # self.val_ROC(outputs['preds'], outputs['target'])
-        # self.log('val_roc', self.val_ROC, logger=True)
-        # self.val_AUC(outputs['preds'], outputs['target'])
-        # self.log('val_auc', self.val_AUC, logger=True)
-        self.log('val_loss', outputs['loss'], logger=True)
-        prec, recall, thresh = self.val_PR(outputs['preds'], outputs['target'])
+        self.val_F1(outputs['preds'], outputs['target'])
+        self.val_PR(outputs['preds'], outputs['target'])
+        self.log('loss/val_step', outputs['loss'])
+        self.log('acc/val_step', self.val_ACC)
+        self.log('f1/val_step', self.val_F1)
+        return outputs
+
+    def validation_epoch_end(self, outputs):
+        self.log('loss/val_epoch', self._av_loss(outputs))
+        self.log('acc/val_epoch', self.val_ACC.compute())
+        self.log('f1/val_epoch', self.val_F1.compute())
+        prec, recall, thresh = self.val_PR.compute()
         for i, t in enumerate(thresh):
-            self.log(f'val_prec/thresh_{t:.3f}', prec[i], logger=True)
-            self.log(f'val_recall/thresh_{t:.3f}', recall[i], logger=True)
-        mid_idx = (len(prec) // 2) + 1
-        precision = prec[mid_idx]
-        recall = rec[mid_idx]
-        f1 = 2.0 * precision * recall / (precision + recall)
-        self.log('val_f1', f1, logger=True)
-        return outputs['loss']
+            self.log(f'prec_val_epoch/thresh_{t:.3f}', prec[i])
+            self.log(f'recall_val_epoch/thresh_{t:.3f}', recall[i])
 
-    def test_step(self, batch, batch_idx):
-        edge_pred = self(batch, sigmoid=False)
-        loss = self.criterion(edge_pred, batch.y.view(-1, 1))
-        return {'loss': loss,
-                'preds': torch.sigmoid(edge_pred),
-                'target': batch.y.view(-1, 1).int()}
-
-    def test_epoch_end(self, outputs):
-        self.test_ACC(outputs['preds'], outputs['target'])
-        self.log('test_acc', self.test_ACC, logger=True)
-        prec, recall, thresh = self.test_PR(outputs['preds'], outputs['target'])
-        for i, t in enumerate(thresh):
-            self.log(f'test_prec/thresh_{t:.3f}', prec[i], logger=True)
-            self.log(f'test_recall/thresh_{t:.3f}', recall[i], logger=True)
-        return outputs['loss']
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-                self.parameters(),
-                lr=self.lr,
-                weight_decay=self.decay
-            )
-        return optimizer

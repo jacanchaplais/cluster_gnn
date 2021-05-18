@@ -15,6 +15,7 @@ dependencies:
   - torchvision # necessary?
   - torchmetrics
   - pytorch-lightning
+  - ray-tune
   - tensorboard
   - numpy
   - networkx
