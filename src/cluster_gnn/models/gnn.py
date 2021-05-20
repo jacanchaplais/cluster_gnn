@@ -68,7 +68,8 @@ class Net(pl.LightningModule):
                 reduction='mean')
         # add metrics
         self.train_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
-        self.train_F1 = torchmetrics.F1(threshold=infer_thresh)
+        self.train_F1 = torchmetrics.F1(
+                num_classes=1, threshold=infer_thresh)
         self.val_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
         self.val_F1 = torchmetrics.F1(
                 num_classes=1, threshold=infer_thresh)
