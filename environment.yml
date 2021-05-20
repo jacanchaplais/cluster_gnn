@@ -6,29 +6,30 @@ channels:
   - defaults
 
 dependencies:
-  - cudatoolkit=10.2
+  - cudatoolkit=10.2 # version for cluster compatibility
   - pip
-  - python=3.8
+  - python=3.8 # version for PyTorch Geometric compatibility
+  - tqdm # provides progress bars to Python loops
   - jupyter
-  - pytorch=1.7
-  - torchaudio # necessary?
-  - torchvision # necessary?
-  - torchmetrics
-  - pytorch-lightning
-  - ray-tune
-  - tensorboard
-  - numpy
-  - networkx
-  - tqdm
+  - pytorch=1.7 # version for cluster compatibility
+  - torchaudio # unnecessary for production (but useful for examples)
+  - torchvision # unnecessary for production (but useful for examples)
+  - networkx # required by PyTorch Geometric
+  - torchmetrics # modular ML metrics for PyTorch
+  - pytorch-lightning # parallelisation
+  - ray-tune # tuning hyperparams
+  - hyperopt # tuning hyperparams
+  - tensorboard # visualising metrics
   - scipy
+  - numpy
+  - numba # JIT compilation and other performance boosts
+  - pandas # DataFrames
+  - h5py # interface to HDF5 data files
   - python-louvain
   - scikit-learn
-  - numba
   - requests
-  - pandas
   - rdflib
-  - h5py
-  - googledrivedownloader
+  - googledrivedownloader # required by PyTorch Geometric
   - ase
   - jinja2
-  - zenodo_get
+  - zenodo_get # downloading public datasets
