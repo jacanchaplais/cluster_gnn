@@ -93,8 +93,11 @@ class Net(pl.LightningModule):
             )
         return optimizer
 
-    def _av_loss(self, outputs):
+    def _train_av_loss(self, outputs):
         return torch.stack([x['loss'] for x in outputs]).mean()
+
+    def _val_av_loss(self, losses):
+        return torch.stack(losses).mean()
 
     def training_step(self, batch, batch_idx):
         edge_pred = self(batch, sigmoid=False)
@@ -106,13 +109,13 @@ class Net(pl.LightningModule):
     def training_step_end(self, outputs):
         self.train_ACC(outputs['preds'], outputs['target'])
         self.train_F1(outputs['preds'], outputs['target'])
-        self.log('loss/train_step', outputs['loss'])
-        self.log('acc/train_step', self.train_ACC)
-        self.log('f1/train_step', self.train_F1)
-        return outputs
+        self.log('loss/train_step', outputs['loss'], on_step=True)
+        self.log('acc/train_step', self.train_ACC, on_step=True)
+        self.log('f1/train_step', self.train_F1, on_step=True)
+        return outputs['loss']
 
     def training_epoch_end(self, outputs):
-        self.log('loss/train_epoch', self._av_loss(outputs))
+        self.log('loss/train_epoch', self._train_av_loss(outputs))
         self.log('acc/train_epoch', self.train_ACC.compute())
         self.log('f1/train_epoch', self.train_F1.compute())
 
@@ -127,13 +130,13 @@ class Net(pl.LightningModule):
         self.val_ACC(outputs['preds'], outputs['target'])
         self.val_F1(outputs['preds'], outputs['target'])
         self.val_PR(outputs['preds'], outputs['target'])
-        self.log('loss/val_step', outputs['loss'])
-        self.log('acc/val_step', self.val_ACC)
-        self.log('f1/val_step', self.val_F1)
-        return outputs
+        self.log('loss/val_step', outputs['loss'], on_step=True)
+        self.log('acc/val_step', self.val_ACC, on_step=True)
+        self.log('f1/val_step', self.val_F1, on_step=True)
+        return outputs['loss']
 
     def validation_epoch_end(self, outputs):
-        self.log('loss/val_epoch', self._av_loss(outputs))
+        self.log('loss/val_epoch', self._val_av_loss(outputs))
         self.log('acc/val_epoch', self.val_ACC.compute())
         self.log('f1/val_epoch', self.val_F1.compute())
         prec, recall, thresh = self.val_PR.compute()
