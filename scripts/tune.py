@@ -18,7 +18,6 @@ graph_data = loader.GraphDataModule(
 def train_gnn(config, num_epochs=10, num_gpus=4, checkpoint_dir=None):
     logger = pl.loggers.TensorBoardLogger(
         save_dir=tune.get_trial_dir(), name="", version=".")
-
     report_callback = TuneReportCheckpointCallback(
         metrics={
             'loss': 'loss/val_epoch',
@@ -26,7 +25,6 @@ def train_gnn(config, num_epochs=10, num_gpus=4, checkpoint_dir=None):
         },
         filename='checkpoint',
         on='validation_end')
-
     if checkpoint_dir:
         ckpt = pl.utilities.cloud_io.pl_load(
             os.path.join(checkpoint_dir, 'checkpoint'),
@@ -40,7 +38,6 @@ def train_gnn(config, num_epochs=10, num_gpus=4, checkpoint_dir=None):
         model = gnn.Net(num_hidden=6, dim_embed_edge=64, dim_embed_node=32,
                         learn_rate=config['learn_rate'],
                         pos_weight=config['pos_weight'])
-
     trainer = pl.Trainer(gpus=num_gpus, num_nodes=1, max_epochs=num_epochs,
                          progress_bar_refresh_rate=0,
                          logger=logger,
@@ -53,21 +50,17 @@ def tune_gnn(num_samples=10, num_epochs=10, gpus_per_trial=2,
         'learn_rate': tune.loguniform(1e-6, 1e-1),
         'pos_weight': tune.uniform(1.0, 100.0),
         }
-
     scheduler = ASHAScheduler(
         time_attr='epoch',
         max_t=num_epochs,
         )
-
     search_alg = HyperOptSearch(points_to_evaluate=init_params)
-
     reporter = CLIReporter(
         parameter_columns=[
             'learn_rate',
             'pos_weight',
             ],
         )
-
     analysis = tune.run(
         tune.with_parameters(
             train_gnn,
