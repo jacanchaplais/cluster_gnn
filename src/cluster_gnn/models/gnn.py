@@ -70,7 +70,8 @@ class Net(pl.LightningModule):
         self.train_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
         self.train_F1 = torchmetrics.F1(threshold=infer_thresh)
         self.val_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
-        self.val_F1 = torchmetrics.F1(threshold=infer_thresh)
+        self.val_F1 = torchmetrics.F1(
+                num_classes=1, threshold=infer_thresh)
         self.val_PR = torchmetrics.BinnedPrecisionRecallCurve(
                 num_classes=1, num_thresholds=5)
 
@@ -132,7 +133,6 @@ class Net(pl.LightningModule):
         self.val_PR(outputs['preds'], outputs['target'])
         self.log('loss/val_step', outputs['loss'], on_step=True)
         self.log('acc/val_step', self.val_ACC, on_step=True)
-        self.log('f1/val_step', self.val_F1, on_step=True)
         return outputs['loss']
 
     def validation_epoch_end(self, outputs):
