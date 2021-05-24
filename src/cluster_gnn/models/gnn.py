@@ -111,15 +111,13 @@ class Net(pl.LightningModule):
     def training_step_end(self, outputs):
         self.train_ACC(outputs['preds'], outputs['target'])
         self.train_F1(outputs['preds'], outputs['target'])
-        self.log('loss/train_step', outputs['loss'], on_step=True)
-        self.log('acc/train_step', self.train_ACC, on_step=True)
-        self.log('f1/train_step', self.train_F1, on_step=True)
+        self.log('ptl/train_loss', outputs['loss'], on_step=True)
         return outputs['loss']
 
     def training_epoch_end(self, outputs):
-        self.log('loss/train_epoch', self._train_av_loss(outputs))
-        self.log('acc/train_epoch', self.train_ACC.compute())
-        self.log('f1/train_epoch', self.train_F1.compute())
+        self.log('ptl/train_loss', self._train_av_loss(outputs))
+        self.log('ptl/train_accuracy', self.train_ACC.compute())
+        self.log('ptl/train_f', self.train_F1.compute())
 
     def validation_step(self, batch, batch_idx):
         edge_pred = self(batch, sigmoid=False)
@@ -132,16 +130,17 @@ class Net(pl.LightningModule):
         self.val_ACC(outputs['preds'], outputs['target'])
         self.val_F1(outputs['preds'], outputs['target'])
         self.val_PR(outputs['preds'], outputs['target'])
-        self.log('loss/val_step', outputs['loss'], on_step=True)
-        self.log('acc/val_step', self.val_ACC, on_step=True)
+        self.log('ptl/val_loss', outputs['loss'], on_step=True)
         return outputs['loss']
 
     def validation_epoch_end(self, outputs):
-        self.log('loss/val_epoch', self._val_av_loss(outputs))
-        self.log('acc/val_epoch', self.val_ACC.compute())
-        self.log('f1/val_epoch', self.val_F1.compute())
+        metrics = {
+            'ptl/val_loss': self._val_av_loss(outputs),
+            'ptl/val_accuracy': self.val_ACC.compute(),
+            'ptl/val_f': self.val_F1.compute(),
+            }
+        self.log_dict(metrics, sync_dist=True)
         prec, recall, thresh = self.val_PR.compute()
         for i, t in enumerate(thresh):
-            self.log(f'prec_val_epoch/thresh_{t:.3f}', prec[i])
-            self.log(f'recall_val_epoch/thresh_{t:.3f}', recall[i])
-
+            self.log(f'ptl/val_prec_thresh_{t:.3f}', prec[i])
+            self.log(f'ptl/val_recall_thresh_{t:.3f}', recall[i])

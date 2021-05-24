@@ -1,3 +1,5 @@
+import os
+
 import pytorch_lightning as pl
 from ray import tune
 from ray.tune import CLIReporter
@@ -9,22 +11,16 @@ from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
 from cluster_gnn.models import gnn
 from cluster_gnn.data import loader
 
+# slurm hack
+os.environ["SLURM_JOB_NAME"] = "bash"
+
 ROOT_DIR = '/home/jlc1n20/projects/cluster_gnn/'
 MODEL_DIR = ROOT_DIR + '/models/tune/'
 
-graph_data = loader.GraphDataModule(
-    '/home/jlc1n20/projects/cluster_gnn/data/', num_workers=4)
-
-def train_gnn(config, num_epochs=10, num_gpus=4, checkpoint_dir=None):
+def train_gnn(config, data_module, num_epochs=10, num_gpus=4, callbacks=None,
+              checkpoint_dir=None):
     logger = pl.loggers.TensorBoardLogger(
         save_dir=tune.get_trial_dir(), name="", version=".")
-    report_callback = TuneReportCheckpointCallback(
-        metrics={
-            'loss': 'loss/val_epoch',
-            'mean_f1': 'f1/val_epoch'
-        },
-        filename='checkpoint',
-        on='validation_end')
     if checkpoint_dir:
         ckpt = pl.utilities.cloud_io.pl_load(
             os.path.join(checkpoint_dir, 'checkpoint'),
@@ -40,16 +36,25 @@ def train_gnn(config, num_epochs=10, num_gpus=4, checkpoint_dir=None):
                         pos_weight=config['pos_weight'])
     trainer = pl.Trainer(gpus=num_gpus, num_nodes=1, max_epochs=num_epochs,
                          progress_bar_refresh_rate=0,
+                         limit_train_batches=0.1,
                          logger=logger,
-                         callbacks=[report_callback])
-    trainer.fit(model, graph_data)
+                         callbacks=callbacks)
+    trainer.fit(model, data_module)
+    print('callback metrics are:\n {}'.format(trainer.callback_metrics))
 
-def tune_gnn(num_samples=10, num_epochs=10, gpus_per_trial=2,
-             init_params=None):
+def tune_gnn(data_module, num_samples=10, num_epochs=10, gpus_per_trial=2,
+             init_params=None, checkpoint_dir=None):
     config = {
         'learn_rate': tune.loguniform(1e-6, 1e-1),
         'pos_weight': tune.uniform(1.0, 100.0),
         }
+    metrics = ['ptl/val_loss', 'ptl/val_accuracy', 'ptl/val_f']
+    callbacks = [
+        TuneReportCheckpointCallback(
+            metrics,
+            filename='checkpoint',
+            on='validation_end')
+        ]
     scheduler = ASHAScheduler(
         time_attr='epoch',
         max_t=num_epochs,
@@ -60,18 +65,23 @@ def tune_gnn(num_samples=10, num_epochs=10, gpus_per_trial=2,
             'learn_rate',
             'pos_weight',
             ],
+        metric_columns=metrics+['epoch'],
+        )
+    trainable = tune.with_parameters(
+        train_gnn,
+        data_module=data_module,
+        num_epochs=num_epochs,
+        num_gpus=gpus_per_trial,
+        callbacks=callbacks,
+        checkpoint_dir=checkpoint_dir,
         )
     analysis = tune.run(
-        tune.with_parameters(
-            train_gnn,
-            num_epochs=num_epochs,
-            num_gpus=gpus_per_trial
-            ),
+        trainable,
         resources_per_trial={
             'cpu': 1,
             'gpu': gpus_per_trial,
             },
-        metric='mean_f1',
+        metric='ptl/val_f',
         mode='max',
         config=config,
         num_samples=num_samples,
@@ -83,10 +93,18 @@ def tune_gnn(num_samples=10, num_epochs=10, gpus_per_trial=2,
         name='tune_gnn')
     print('Best hp found: ', analysis.best_config)
 
-cur_best_params = [{
-    'learn_rate': 3.75e-5,
-    'pos_weight': 21.5,
-    }]
 
-tune_gnn(num_samples=18, num_epochs=10, gpus_per_trial=4,
-         init_params=cur_best_params)
+if __name__ == '__main__':
+    # currently can't parallelise while tuning, see:
+    # https://github.com/PyTorchLightning/pytorch-lightning/issues/7671
+    num_gpus = 1 
+    cur_best_params = [{
+        'learn_rate': 3.75e-5,
+        'pos_weight': 21.5,
+        }]
+    graph_data = loader.GraphDataModule(
+        '/home/jlc1n20/projects/cluster_gnn/data/', num_workers=num_gpus)
+
+    tune_gnn(data_module=graph_data, num_samples=18, num_epochs=10,
+             gpus_per_trial=num_gpus, init_params=cur_best_params)
+
