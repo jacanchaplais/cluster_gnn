@@ -2,20 +2,25 @@ from itertools import accumulate
 
 import torch
 from torch_geometric.data import Data, Dataset, DataLoader
+from torch_geometric.utils import from_scipy_sparse_matrix as sps_to_edge
 import pytorch_lightning as pl
 import h5py
 import numpy as np
 from numba import jit
+import scipy.sparse as sps
 
+from cluster_gnn.features import build_features as bf
 
 # TODO: add processing, download, maybe env var for data dir
 class EventDataset(Dataset):
     def __init__(self,
                  data_dir: str = './data/',
+                 knn: int = 0,
                  transform=None,
                  pre_transform=None):
         super(EventDataset, self).__init__(None, transform, pre_transform)
         self.root_dir = data_dir
+        self.knn = knn
         with h5py.File(self.root_dir + '/processed/events.hdf5', 'r') as f:
             self.length = f['wboson'].attrs['num_evts']
         
@@ -31,20 +36,17 @@ class EventDataset(Dataset):
     def len(self):
         return self.length
     
-    @jit(forceobj=True)
-    def _get_edges(self, num_nodes):
+    # @jit(forceobj=True)
+    def _get_edges(self, pmu):
         """Returns COO formatted graph edges for
-        full connected graph of given number of nodes.
+        fully connected graph of given number of nodes.
         type: (2, num_nodes * (num_nodes - 1)) dim array
         """
-        nodes = np.arange(num_nodes, dtype=np.int64)
-        edge_idx = np.vstack((
-            np.repeat(nodes, num_nodes),
-            np.repeat(nodes, num_nodes).reshape(-1, num_nodes).T.flatten()
-        ))
-        # removing self-loops
-        mask = edge_idx[0] != edge_idx[1]
-        edge_idx = edge_idx[:, mask]
+        if self.knn == 0:
+            adj = bf.fc_adj_matrix(num_nodes=len(pmu))
+        else:
+            adj = bf.knn_adj_matrix(bf.deltaR_matrix(pmu), k=self.knn)
+        edge_idx = sps_to_edge(sps.coo_matrix(adj)) # to coo formatted edges
         return edge_idx
     
     def get(self, idx):
@@ -53,11 +55,7 @@ class EventDataset(Dataset):
             evt = f['wboson'][f'event_{idx:06}']
             num_nodes = evt.attrs['num_pcls']
             pmu = torch.from_numpy(evt['pmu'][...]) # 4-momentum for nodes
-            if 'edges' in evt:
-                edge_idx = evt['edges'][...].astype(np.int64)
-            else:
-                edge_idx = self._get_edges(num_nodes)
-            edge_idx = torch.from_numpy(edge_idx).long()
+            edge_idx = self._get_edges(pmu)
             pdg = torch.from_numpy(evt['pdg'][...]) # PDG for posterity
             
             # CONSTRUCT EDGE LABELS:

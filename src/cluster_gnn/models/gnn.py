@@ -66,15 +66,22 @@ class Net(pl.LightningModule):
         self.criterion = torch.nn.BCEWithLogitsLoss(
                 pos_weight=torch.tensor(pos_weight, device=self.device),
                 reduction='mean')
-        # add metrics
+        # METRICS:
+        # train
         self.train_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
         self.train_F1 = torchmetrics.F1(
                 num_classes=1, threshold=infer_thresh)
+        # validate
         self.val_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
         self.val_F1 = torchmetrics.F1(
                 num_classes=1, threshold=infer_thresh)
         self.val_PR = torchmetrics.BinnedPrecisionRecallCurve(
                 num_classes=1, num_thresholds=5)
+        # test
+        self.test_PR = torchmetrics.BinnedPrecisionRecallCurve(
+                num_classes=1)
+        self.test_ROC = torchmetrics.ROC(compute_on_step=False)
+        self.test_AUC = torchmetrics.AUROC()
 
     def forward(self, data, sigmoid=True):
         node_attrs, edge_attrs = data.x, data.edge_attr
@@ -144,3 +151,28 @@ class Net(pl.LightningModule):
         for i, t in enumerate(thresh):
             self.log(f'ptl/val_prec_thresh_{t:.3f}', prec[i])
             self.log(f'ptl/val_recall_thresh_{t:.3f}', recall[i])
+
+    def test_step(self, batch, batch_idx):
+        edge_pred = self(batch, sigmoid=False)
+        loss = self.criterion(edge_pred, batch.y.view(-1, 1))
+        preds = torch.sigmoid(edge_pred)
+        target = batch.y.view(-1, 1).int()
+        self.test_ROC(preds, target)
+        self.test_AUC(preds, target)
+        # self.test_PR(preds, target)
+        return {'loss': loss,
+                'preds': preds,
+                'target': target}
+
+    def test_epoch_end(self, outputs):
+        # prec, rec, thresh = self.test_PR.compute()
+        roc = self.test_ROC.compute()
+        auc = self.test_AUC.compute()
+        out_dir = '/home/jlc1n20/projects/cluster_gnn/models/big/'
+        # torch.save(prec, out_dir + 'prec.pt')
+        # torch.save(rec, out_dir + 'rec.pt')
+        # torch.save(thresh, out_dir + 'thresh.pt')
+        torch.save(auc, out_dir + 'auc.pt')
+        torch.save(roc, out_dir + 'roc.pt')
+        # self.log('ptl/test_roc', self.test_ROC.compute())
+        # self.log('ptl/test_auc', self.test_AUC.compute())
