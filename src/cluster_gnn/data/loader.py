@@ -42,20 +42,22 @@ class EventDataset(Dataset):
         fully connected graph of given number of nodes.
         type: (2, num_nodes * (num_nodes - 1)) dim array
         """
+        dtype = np.int64
         if self.knn == 0:
-            adj = bf.fc_adj_matrix(num_nodes=len(pmu))
+            adj = bf.fc_adj(num_nodes=len(pmu), dtype=dtype)
         else:
-            adj = bf.knn_adj_matrix(bf.deltaR_matrix(pmu), k=self.knn)
+            adj = bf.knn_adj(bf.deltaR_aff(pmu), k=self.knn, dtype=dtype)
         edge_idx = sps_to_edge(sps.coo_matrix(adj)) # to coo formatted edges
-        return edge_idx
+        return edge_idx[0] # the second elem is all ones
     
     def get(self, idx):
         with h5py.File(self.root_dir + '/processed/events.hdf5', 'r') as f:
             # LOAD DATA:
             evt = f['wboson'][f'event_{idx:06}']
             num_nodes = evt.attrs['num_pcls']
-            pmu = torch.from_numpy(evt['pmu'][...]) # 4-momentum for nodes
+            pmu = evt['pmu'][...]
             edge_idx = self._get_edges(pmu)
+            pmu = torch.from_numpy(pmu)
             pdg = torch.from_numpy(evt['pdg'][...]) # PDG for posterity
             
             # CONSTRUCT EDGE LABELS:
@@ -75,11 +77,13 @@ class GraphDataModule(pl.LightningDataModule):
                  data_dir: str = './data/',
                  splits = {'train': 0.9, 'val': 0.05, 'test': 0.05},
                  batch_size: int = 1,
-                 num_workers: int = 1):
+                 num_workers: int = 1,
+                 knn: int = 0):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.knn = knn
         if sum(splits.values()) <= 1.0:
             self.splits = splits
         elif 'train' not in splits or 'val' not in splits:
@@ -89,7 +93,7 @@ class GraphDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         # stage could be fit, test
-        graph_set = EventDataset(self.data_dir)
+        graph_set = EventDataset(self.data_dir, self.knn)
         num_graphs = graph_set.len()
         start_idx = 0
         for key, split in self.splits.items():
