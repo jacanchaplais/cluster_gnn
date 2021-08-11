@@ -8,6 +8,7 @@
 #SBATCH --job-name=knn
 #SBATCH --output=/home/jlc1n20/projects/cluster_gnn/log/%x-%j.out
 #SBATCH --gres-flags=enforce-binding
+#SBATCH --dependency=singleton
 
 # setting up environment
 source activate ptg

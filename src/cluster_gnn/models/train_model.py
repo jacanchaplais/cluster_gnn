@@ -38,12 +38,12 @@ def train_model(hparams, data_module, model_dir, num_epochs=30,
 
 if __name__ == '__main__':
     ROOT_DIR = os.path.expanduser('~/projects/cluster_gnn/')
-    MODEL_DIR = ROOT_DIR + 'models/knn/'
+    MODEL_DIR = ROOT_DIR + 'models/knn2/'
 
     graph_data = loader.GraphDataModule(
         ROOT_DIR + '/data/',
         num_workers=16,
-        knn=12,
+        knn=20,
         )
     config = {
         'num_hidden': 7,
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         'dim_embed_node': 128,
         'learn_rate': 1e-4,
         'weight_decay': 5e-5,
-        'pos_weight': 3.0,
+        'pos_weight': 1.0,
         'final_bias': True,
         }
     train_model(

@@ -15,6 +15,7 @@ dependencies:
   - torchaudio # unnecessary for production (but useful for examples)
   - torchvision # unnecessary for production (but useful for examples)
   - networkx # required by PyTorch Geometric
+  - pyvis
   - torchmetrics # modular ML metrics for PyTorch
   - pytorch-lightning # parallelisation
   - ray-tune # tuning hyperparams
