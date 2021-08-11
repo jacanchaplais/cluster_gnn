@@ -38,29 +38,25 @@ def train_model(hparams, data_module, model_dir, num_epochs=30,
 
 if __name__ == '__main__':
     ROOT_DIR = os.path.expanduser('~/projects/cluster_gnn/')
-    MODEL_DIR = ROOT_DIR + 'models/full/'
+    MODEL_DIR = ROOT_DIR + 'models/concat/'
 
     graph_data = loader.GraphDataModule(
         ROOT_DIR + '/data/',
         num_workers=16,
+        knn=20,
         )
     config = {
         'num_hidden': 7,
-        'dim_embed_edge': 64,
-        'dim_embed_node': 64,
-        'dim1_edge': 128, # dim of first embedded edge layer
-        'dim1_node': 128, # dim of first embedded node layer
-        'learn_rate': 1.0131e-4,
-        'weight_decay': 3.7846e-5,
-        'pos_weight': 4.5483,
+        'dim_embed_edge': 128,
+        'dim_embed_node': 128,
+        'learn_rate': 1e-4,
+        'weight_decay': 5e-5,
+        'pos_weight': 1.0,
         'final_bias': True,
         }
     train_model(
         hparams=config,
         data_module=graph_data,
         model_dir=MODEL_DIR,
-        num_epochs=50,
-        ckpt_path=MODEL_DIR
-                  +'/default/version_0/checkpoints/'
-                  +'epoch=39-step=899999.ckpt',
+        num_epochs=40,
         )

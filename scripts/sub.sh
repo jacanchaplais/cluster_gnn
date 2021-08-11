@@ -1,13 +1,14 @@
 #!/bin/bash
-#SBATCH --partition=ecsall
+#SBATCH --partition=ecsstaff
 #SBATCH --account=ecsstaff
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=8
+#SBATCH --ntasks-per-node=16
 #SBATCH --gres=gpu:4
-#SBATCH --time=72:00:00
-#SBATCH --job-name=full
+#SBATCH --time=100:00:00
+#SBATCH --job-name=knn
 #SBATCH --output=/home/jlc1n20/projects/cluster_gnn/log/%x-%j.out
 #SBATCH --gres-flags=enforce-binding
+#SBATCH --dependency=singleton
 
 # setting up environment
 source activate ptg
@@ -18,7 +19,7 @@ export PYTHONFAULTHANDLER=1
 
 # filesystem
 projdir=$HOME/projects/cluster_gnn
-progfile=$projdir/scripts/train.py
+progfile=$projdir/src/cluster_gnn/models/train_model.py
 
 # execution
 python $progfile
