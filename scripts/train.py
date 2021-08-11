@@ -5,7 +5,7 @@ from cluster_gnn.data import loader
 
 
 ROOT_DIR = '/home/jlc1n20/projects/cluster_gnn/'
-MODEL_DIR = ROOT_DIR + 'models/'
+MODEL_DIR = ROOT_DIR + 'temp/'
 LOG_DIR = ROOT_DIR + 'log/'
 
 graph_data = loader.GraphDataModule('/home/jlc1n20/projects/cluster_gnn/data/',

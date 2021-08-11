@@ -66,17 +66,22 @@ class Net(pl.LightningModule):
         self.criterion = torch.nn.BCEWithLogitsLoss(
                 pos_weight=torch.tensor(pos_weight, device=self.device),
                 reduction='mean')
-        # add metrics
+        # METRICS:
+        # train
         self.train_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
-        # self.train_AUC = torchmetrics.AUROC()
+        self.train_F1 = torchmetrics.F1(
+                num_classes=1, threshold=infer_thresh)
+        # validate
         self.val_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
+        self.val_F1 = torchmetrics.F1(
+                num_classes=1, threshold=infer_thresh)
         self.val_PR = torchmetrics.BinnedPrecisionRecallCurve(
                 num_classes=1, num_thresholds=5)
+        # test
         self.test_PR = torchmetrics.BinnedPrecisionRecallCurve(
-                num_classes=1, num_thresholds=5)
-        # self.test_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
-        # self.test_ROC = torchmetrics.ROC()
-        # self.test_AUC = torchmetrics.AUROC()
+                num_classes=1)
+        self.test_ROC = torchmetrics.ROC(compute_on_step=False)
+        self.test_AUC = torchmetrics.AUROC()
 
     def forward(self, data, sigmoid=True):
         node_attrs, edge_attrs = data.x, data.edge_attr
@@ -89,19 +94,37 @@ class Net(pl.LightningModule):
             pred = torch.sigmoid(pred)
         return pred
 
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(
+                self.parameters(),
+                lr=self.lr,
+                weight_decay=self.decay
+            )
+        return optimizer
+
+    def _train_av_loss(self, outputs):
+        return torch.stack([x['loss'] for x in outputs]).mean()
+
+    def _val_av_loss(self, losses):
+        return torch.stack(losses).mean()
+
     def training_step(self, batch, batch_idx):
         edge_pred = self(batch, sigmoid=False)
         loss = self.criterion(edge_pred, batch.y.view(-1, 1))
-        self.log('train_loss', loss, logger=True)
         return {'loss': loss,
                 'preds': torch.sigmoid(edge_pred),
                 'target': batch.y.view(-1, 1).int()}
 
     def training_step_end(self, outputs):
         self.train_ACC(outputs['preds'], outputs['target'])
-        self.log('train_acc', self.train_ACC, prog_bar=True,
-                 logger=True)
+        self.train_F1(outputs['preds'], outputs['target'])
+        self.log('ptl/train_loss', outputs['loss'], on_step=True)
         return outputs['loss']
+
+    def training_epoch_end(self, outputs):
+        self.log('ptl/train_loss', self._train_av_loss(outputs))
+        self.log('ptl/train_accuracy', self.train_ACC.compute())
+        self.log('ptl/train_f', self.train_F1.compute())
 
     def validation_step(self, batch, batch_idx):
         edge_pred = self(batch, sigmoid=False)
@@ -112,38 +135,44 @@ class Net(pl.LightningModule):
 
     def validation_step_end(self, outputs):
         self.val_ACC(outputs['preds'], outputs['target'])
-        self.log('val_acc', self.val_ACC, logger=True)
-        # self.val_ROC(outputs['preds'], outputs['target'])
-        # self.log('val_roc', self.val_ROC, logger=True)
-        # self.val_AUC(outputs['preds'], outputs['target'])
-        # self.log('val_auc', self.val_AUC, logger=True)
-        self.log('val_loss', outputs['loss'], logger=True)
-        prec, recall, thresh = self.val_PR(outputs['preds'], outputs['target'])
-        for i, t in enumerate(thresh):
-            self.log(f'val_prec/thresh_{t:.3f}', prec[i], logger=True)
-            self.log(f'val_recall/thresh_{t:.3f}', recall[i], logger=True)
+        self.val_F1(outputs['preds'], outputs['target'])
+        self.val_PR(outputs['preds'], outputs['target'])
+        self.log('ptl/val_loss', outputs['loss'], on_step=True)
         return outputs['loss']
+
+    def validation_epoch_end(self, outputs):
+        metrics = {
+            'ptl/val_loss': self._val_av_loss(outputs),
+            'ptl/val_accuracy': self.val_ACC.compute(),
+            'ptl/val_f': self.val_F1.compute(),
+            }
+        self.log_dict(metrics, sync_dist=True)
+        prec, recall, thresh = self.val_PR.compute()
+        for i, t in enumerate(thresh):
+            self.log(f'ptl/val_prec_thresh_{t:.3f}', prec[i])
+            self.log(f'ptl/val_recall_thresh_{t:.3f}', recall[i])
 
     def test_step(self, batch, batch_idx):
         edge_pred = self(batch, sigmoid=False)
         loss = self.criterion(edge_pred, batch.y.view(-1, 1))
+        preds = torch.sigmoid(edge_pred)
+        target = batch.y.view(-1, 1).int()
+        self.test_ROC(preds, target)
+        self.test_AUC(preds, target)
+        # self.test_PR(preds, target)
         return {'loss': loss,
-                'preds': torch.sigmoid(edge_pred),
-                'target': batch.y.view(-1, 1).int()}
+                'preds': preds,
+                'target': target}
 
     def test_epoch_end(self, outputs):
-        self.test_ACC(outputs['preds'], outputs['target'])
-        self.log('test_acc', self.test_ACC, logger=True)
-        prec, recall, thresh = self.test_PR(outputs['preds'], outputs['target'])
-        for i, t in enumerate(thresh):
-            self.log(f'test_prec/thresh_{t:.3f}', prec[i], logger=True)
-            self.log(f'test_recall/thresh_{t:.3f}', recall[i], logger=True)
-        return outputs['loss']
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(
-                self.parameters(),
-                lr=self.lr,
-                weight_decay=self.decay
-            )
-        return optimizer
+        # prec, rec, thresh = self.test_PR.compute()
+        roc = self.test_ROC.compute()
+        auc = self.test_AUC.compute()
+        out_dir = '/home/jlc1n20/projects/cluster_gnn/models/big/'
+        # torch.save(prec, out_dir + 'prec.pt')
+        # torch.save(rec, out_dir + 'rec.pt')
+        # torch.save(thresh, out_dir + 'thresh.pt')
+        torch.save(auc, out_dir + 'auc.pt')
+        torch.save(roc, out_dir + 'roc.pt')
+        # self.log('ptl/test_roc', self.test_ROC.compute())
+        # self.log('ptl/test_auc', self.test_AUC.compute())

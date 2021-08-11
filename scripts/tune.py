@@ -4,7 +4,7 @@ import math
 import pytorch_lightning as pl
 from ray import tune
 from ray.tune import CLIReporter
-from ray.tune.schedulers import PopulationBasedTraining
+from ray.tune.schedulers import ASHAScheduler
 from ray.tune.suggest.hyperopt import HyperOptSearch
 from ray.tune.integration.pytorch_lightning import TuneReportCallback
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
@@ -75,6 +75,7 @@ def tune_gnn(data_module, num_samples=10, num_epochs=10, gpus_per_trial=1,
             filename='checkpoint',
             on='validation_end')
         ]
+<<<<<<< HEAD
     scheduler = PopulationBasedTraining(
         perturbation_interval=4,
         hyperparam_mutations={
@@ -83,7 +84,7 @@ def tune_gnn(data_module, num_samples=10, num_epochs=10, gpus_per_trial=1,
             'weight_decay': tune.loguniform(1e-5, 1e-3),
             },
         )
-    search_alg = None # HyperOptSearch(points_to_evaluate=init_params)
+    search_alg = HyperOptSearch(points_to_evaluate=init_params)
     reporter = CLIReporter(
         parameter_columns=list(config.keys()),
         metric_columns=list(metrics.values())+[opt_tstep],
