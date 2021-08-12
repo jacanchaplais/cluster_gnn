@@ -75,7 +75,6 @@ def tune_gnn(data_module, num_samples=10, num_epochs=10, gpus_per_trial=1,
             filename='checkpoint',
             on='validation_end')
         ]
-<<<<<<< HEAD
     scheduler = PopulationBasedTraining(
         perturbation_interval=4,
         hyperparam_mutations={
