@@ -31,7 +31,7 @@ class EventLoader:
         return self.__grp[key][...]
 
     def get_pdg(self):
-        return self.__grp['pdg']
+        return self.__grp['pdg'][...]
 
     def get_custom(self, key):
         return self.__grp[key][...]
