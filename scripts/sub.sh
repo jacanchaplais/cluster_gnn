@@ -5,10 +5,9 @@
 #SBATCH --ntasks-per-node=16
 #SBATCH --gres=gpu:4
 #SBATCH --time=100:00:00
-#SBATCH --job-name=knn
+#SBATCH --job-name=cat
 #SBATCH --output=/home/jlc1n20/projects/cluster_gnn/log/%x-%j.out
 #SBATCH --gres-flags=enforce-binding
-#SBATCH --dependency=singleton
 
 # setting up environment
 source activate ptg

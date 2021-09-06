@@ -43,7 +43,7 @@ if __name__ == '__main__':
     graph_data = loader.GraphDataModule(
         ROOT_DIR + '/data/',
         num_workers=16,
-        knn=20,
+        knn=0,
         )
     config = {
         'num_hidden': 7,
