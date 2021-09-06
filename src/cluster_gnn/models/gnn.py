@@ -67,7 +67,7 @@ class Net(pl.LightningModule):
                 },
             'node': {
                 True: dim1_node,
-                False: self.dim_embed_node,
+                False: self.dim_embed_node + self.dim_node,
                 }
             }
 
@@ -77,8 +77,7 @@ class Net(pl.LightningModule):
             [( # encoder
                 Interaction(
                     self.dim_edge, self.dim_node,
-                    self.dims['edge'][dim1_edge != None],
-                    self.dims['node'][dim1_node != None]
+                    self.dim_embed_edge, self.dim_embed_node
                     ),
                 'x_init, edge_index, edge_attrs -> edge_attrs, x'
                 ),
@@ -92,9 +91,6 @@ class Net(pl.LightningModule):
                 'x_in, edge_index, edge_attrs -> edge_attrs, x')
                 ) for i in range(num_hidden)])
             )
-
-        print(self.dims)
-        print(self.model)
 
         self.classify = torch.nn.Linear(dim_embed_edge, 1, bias=final_bias)
         # optimiser args
