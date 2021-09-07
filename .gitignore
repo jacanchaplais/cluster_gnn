@@ -97,3 +97,6 @@ Session.vim
 
 # TODO: track with DVC
 /models/
+
+/configs/*
+!/configs/default.yml
