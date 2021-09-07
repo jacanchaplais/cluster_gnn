@@ -34,3 +34,4 @@ dependencies:
   - ase
   - jinja2
   - zenodo_get # downloading public datasets
+  - pyyaml
