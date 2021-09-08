@@ -9,12 +9,13 @@ import numpy as np
 from numba import jit
 import scipy.sparse as sps
 
+from cluster_gnn import ROOT_DIR
 from cluster_gnn.features import build_features as bf
 
 # TODO: add processing, download, maybe env var for data dir
 class EventDataset(Dataset):
     def __init__(self,
-                 data_dir: str = './data/',
+                 data_dir: str = ROOT_DIR + '/data/',
                  knn: int = 0,
                  edge_weight: bool = False,
                  transform=None,
@@ -79,7 +80,7 @@ class EventDataset(Dataset):
 
 class GraphDataModule(pl.LightningDataModule):
     def __init__(self,
-                 data_dir: str = './data/',
+                 data_dir: str = ROOT_DIR + '/data/',
                  splits = {'train': 0.9, 'val': 0.05, 'test': 0.05},
                  batch_size: int = 1,
                  num_workers: int = 1,

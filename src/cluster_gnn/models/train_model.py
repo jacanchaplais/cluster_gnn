@@ -1,7 +1,9 @@
 import os
 
 import pytorch_lightning as pl
+import pyyaml
 
+from cluster_gnn import ROOT_DIR
 from cluster_gnn.models import gnn
 from cluster_gnn.data import loader
 
@@ -37,7 +39,6 @@ def train_model(hparams, data_module, model_dir, num_epochs=30,
     trainer.fit(model, data_module)
 
 if __name__ == '__main__':
-    ROOT_DIR = os.path.expanduser('~/projects/cluster_gnn/')
     MODEL_DIR = ROOT_DIR + 'models/concat/'
 
     graph_data = loader.GraphDataModule(
