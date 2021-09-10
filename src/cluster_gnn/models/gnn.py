@@ -46,7 +46,7 @@ class Interaction(pyg.nn.MessagePassing):
 class Net(pl.LightningModule):
     def __init__(self, dim_node: int = 4, dim_edge: int = 0,
                  dim_embed_edge: int = 64, dim_embed_node: int = 64,
-                 dim1_node=None, dim1_edge=None,
+                 dim1_node: int = 0, dim1_edge: int = 0,
                  num_hidden: int = 7, final_bias: bool = True,
                  pos_weight: float = 4.5,
                  learn_rate: float = 1.0e-4,
@@ -85,8 +85,8 @@ class Net(pl.LightningModule):
             + self.__expand([(
                 (self.__cat, 'x_init, x -> x_in'),
                 (Interaction(
-                    self.dims['edge'][i == 0 and dim1_edge != None],
-                    self.dims['node'][i == 0 and dim1_node != None],
+                    self.dims['edge'][i == 0 and dim1_edge != 0],
+                    self.dims['node'][i == 0 and dim1_node != 0],
                     self.dim_embed_edge, self.dim_embed_node),
                 'x_in, edge_index, edge_attrs -> edge_attrs, x')
                 ) for i in range(num_hidden)])

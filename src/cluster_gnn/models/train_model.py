@@ -1,7 +1,8 @@
 import os
 
 import pytorch_lightning as pl
-import pyyaml
+import yaml
+import click
 
 from cluster_gnn import ROOT_DIR
 from cluster_gnn.models import gnn
@@ -15,20 +16,49 @@ from cluster_gnn.data import loader
 #     latest_dir = ckpt_dirs[-1]
 #     ckpt_path = latest_dir + '/checkpoints/'
 
+@click.command()
+@click.option('-c', '--config',
+              type=click.File(),
+              default=ROOT_DIR+'/configs/default.yml'
+              )
+def train_model(config):
+    SETTINGS = yaml.safe_load(config)
+    model_dir = ROOT_DIR + '/models/' + SETTINGS['name'] + '/'
+    ckpt_path = None
+    if SETTINGS['optim']['ckpt_path'] != '':
+        ckpt_path = SETTINGS['optim']['ckpt_path']
 
-def train_model(hparams, data_module, model_dir, num_epochs=30,
-                ckpt_path=None):
-    model = gnn.Net(**hparams)
-    logger = pl.loggers.TensorBoardLogger(model_dir)
-    trainer_kwargs = dict(
-        gpus=-1,
-        num_nodes=1,
-        max_epochs=num_epochs,
-        progress_bar_refresh_rate=100,
-        logger=logger,
-        default_root_dir=model_dir,
-        accelerator='ddp',
+    # configure data loaders, GNN, and trainer settings
+    graph_data = loader.GraphDataModule(
+        str(SETTINGS['data']['dir']).replace('%ROOT%', ROOT_DIR),
+        splits=SETTINGS['data']['splits'],
+        batch_size=int(SETTINGS['data']['batch_size']),
+        edge_weight=bool(SETTINGS['data']['edge_weight']),
+        num_workers=int(SETTINGS['device']['num_workers']),
+        knn=int(SETTINGS['data']['knn']),
         )
+    model = gnn.Net(
+        num_hidden=int(SETTINGS['arch']['num_hidden']),
+        dim1_edge=int(SETTINGS['arch']['dim_embed_edge_l1']),
+        dim1_node=int(SETTINGS['arch']['dim_embed_node_l1']),
+        dim_embed_edge=int(SETTINGS['arch']['dim_embed_edge']),
+        dim_embed_node=int(SETTINGS['arch']['dim_embed_node']),
+        final_bias=bool(SETTINGS['arch']['final_bias']),
+        learn_rate=float(SETTINGS['optim']['learn_rate']),
+        weight_decay=float(SETTINGS['optim']['weight_decay']),
+        pos_weight=float(SETTINGS['loss']['pos_weight']),
+        )
+    trainer_kwargs = dict(
+        gpus=int(SETTINGS['device']['num_gpus']),
+        num_nodes=int(SETTINGS['device']['num_nodes']),
+        max_epochs=int(SETTINGS['optim']['num_epochs']),
+        progress_bar_refresh_rate=100,
+        logger=pl.loggers.TensorBoardLogger(model_dir),
+        default_root_dir=model_dir,
+        accelerator=str(SETTINGS['device']['accelerator']),
+        )
+
+    # initiate training, resuming from checkpoint if specified
     if os.path.exists(model_dir) and ckpt_path != None:
         if not os.path.exists(ckpt_path):
             raise FileNotFoundError('Checkpoint path does not exist.')
@@ -36,28 +66,7 @@ def train_model(hparams, data_module, model_dir, num_epochs=30,
             resume_from_checkpoint=ckpt_path, **trainer_kwargs)
     else:
         trainer = pl.Trainer(**trainer_kwargs)
-    trainer.fit(model, data_module)
+    trainer.fit(model, graph_data)
 
 if __name__ == '__main__':
-    MODEL_DIR = ROOT_DIR + 'models/concat/'
-
-    graph_data = loader.GraphDataModule(
-        ROOT_DIR + '/data/',
-        num_workers=16,
-        knn=0,
-        )
-    config = {
-        'num_hidden': 7,
-        'dim_embed_edge': 128,
-        'dim_embed_node': 128,
-        'learn_rate': 1e-4,
-        'weight_decay': 5e-5,
-        'pos_weight': 1.0,
-        'final_bias': True,
-        }
-    train_model(
-        hparams=config,
-        data_module=graph_data,
-        model_dir=MODEL_DIR,
-        num_epochs=40,
-        )
+    train_model()
