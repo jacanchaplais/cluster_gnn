@@ -1,0 +1,37 @@
+name: 'default'
+
+device:
+  num_gpus: -1
+  num_nodes: 1
+  num_workers: 16
+  accelerator: 'ddp'
+
+data:
+  dir: '%ROOT%/data/'
+  knn: 20 # 0 is switched off
+  edge_weight: false
+  batch_size: 1 # per gpu
+  splits:
+    train: 0.9
+    test: 0.05
+    val: 0.05
+
+arch:
+  num_hidden: 7
+  dim_embed_edge_l1: 0
+  dim_embed_node_l1: 0
+  dim_embed_edge: 128
+  dim_embed_node: 128
+  final_bias: true
+
+loss:
+  pos_weight: 2.0
+
+optim:
+  learn_rate: 1e-4
+  weight_decay: 5e-5
+  num_epochs: 20
+  ckpt_path: ''
+
+metrics:
+  infer_thresh: 0.5
