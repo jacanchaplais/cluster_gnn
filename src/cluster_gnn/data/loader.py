@@ -16,16 +16,19 @@ from cluster_gnn.data import internal as DataParser
 class EventDataset(Dataset):
     def __init__(self,
                  data_dir: str = ROOT_DIR + '/data/',
+                 data_key: str = 'wboson',
                  knn: int = 0,
                  edge_weight: bool = False,
                  transform=None,
                  pre_transform=None):
         super(EventDataset, self).__init__(None, transform, pre_transform)
         self.root_dir = data_dir
+        self.key = data_key
         self.knn = knn
         self.edge_weight = edge_weight
+        print(self.root_dir)
         with DataParser.EventLoader(
-                self.root_dir + '/processed/events.hdf5', 'r') as evts:
+                self.root_dir + '/processed/events.hdf5', self.key) as evts:
             self.length = len(evts)
 
     @property
@@ -57,7 +60,7 @@ class EventDataset(Dataset):
     
     def get(self, idx):
         with DataParser.EventLoader(
-                self.root_dir + '/processed/events.hdf5', 'r') as evts:
+                self.root_dir + '/processed/events.hdf5', self.key) as evts:
             # LOAD DATA:
             evts.set_evt(idx)
             num_nodes = evts.get_num_pcls()
@@ -103,7 +106,10 @@ class GraphDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         # stage could be fit, test
-        graph_set = EventDataset(self.data_dir, self.knn, self.edge_weight)
+        graph_set = EventDataset(
+            data_dir=self.data_dir,
+            knn=self.knn,
+            edge_weight=self.edge_weight)
         num_graphs = graph_set.len()
         start_idx = 0
         for key, split in self.splits.items():
