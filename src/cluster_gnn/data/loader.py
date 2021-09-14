@@ -4,13 +4,13 @@ import torch
 from torch_geometric.data import Data, Dataset, DataLoader
 from torch_geometric.utils import from_scipy_sparse_matrix as sps_to_edge
 import pytorch_lightning as pl
-import h5py
 import numpy as np
 from numba import jit
 import scipy.sparse as sps
 
 from cluster_gnn import ROOT_DIR
 from cluster_gnn.features import build_features as bf
+from cluster_gnn.data import internal as DataParser
 
 # TODO: add processing, download, maybe env var for data dir
 class EventDataset(Dataset):
@@ -24,9 +24,10 @@ class EventDataset(Dataset):
         self.root_dir = data_dir
         self.knn = knn
         self.edge_weight = edge_weight
-        with h5py.File(self.root_dir + '/processed/events.hdf5', 'r') as f:
-            self.length = f['wboson'].attrs['num_evts']
-        
+        with DataParser.EventLoader(
+                self.root_dir + '/processed/events.hdf5', 'r') as evts:
+            self.length = len(evts)
+
     @property
     def raw_file_names(self):
         return [self.root_dir + '/external/wboson.txt',
@@ -55,23 +56,24 @@ class EventDataset(Dataset):
         return edge_idx
     
     def get(self, idx):
-        with h5py.File(self.root_dir + '/processed/events.hdf5', 'r') as f:
+        with DataParser.EventLoader(
+                self.root_dir + '/processed/events.hdf5', 'r') as evts:
             # LOAD DATA:
-            evt = f['wboson'][f'event_{idx:06}']
-            num_nodes = evt.attrs['num_pcls']
-            pmu = evt['pmu'][...]
+            evts.set_evt(idx)
+            num_nodes = evts.get_num_pcls()
+            pmu = evts.get_pmu()
             edge_idx, edge_weight = self._get_edges(pmu)
             if not self.edge_weight:
                 edge_weight = None
             pmu = torch.from_numpy(pmu)
-            pdg = torch.from_numpy(evt['pdg'][...]) # PDG for posterity
+            pdg = torch.from_numpy(evts.get_pdg()) # PDG for posterity
             
             # CONSTRUCT EDGE LABELS:
-            is_from_W = evt['is_from_W'][...]
+            is_signal = evts.get_signal()
             # node pairs bool labelled for all edges
-            is_from_W = is_from_W[edge_idx]
+            is_signal = is_signal[edge_idx]
             # reduce => True if both nodes True
-            edge_labels = np.bitwise_and.reduce(is_from_W, axis=0)
+            edge_labels = np.bitwise_and.reduce(is_signal, axis=0)
             edge_labels = torch.from_numpy(edge_labels).float()
 
             # RETURN GRAPH
