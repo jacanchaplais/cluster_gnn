@@ -3,9 +3,9 @@
 #SBATCH --account=ecsstaff
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=16
-#SBATCH --gres=gpu:4
-#SBATCH --time=100:00:00
-#SBATCH --job-name=cat
+#SBATCH --gres=gpu:1
+#SBATCH --time=01:00:00
+#SBATCH --job-name=ui
 #SBATCH --output=/home/jlc1n20/projects/cluster_gnn/log/%x-%j.out
 #SBATCH --gres-flags=enforce-binding
 
@@ -21,4 +21,4 @@ projdir=$HOME/projects/cluster_gnn
 progfile=$projdir/src/cluster_gnn/models/train_model.py
 
 # execution
-python $progfile
+python $progfile -c $projdir/configs/train/dev.yml
