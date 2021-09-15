@@ -79,7 +79,7 @@ class EventDataset(Dataset):
             edge_labels = np.bitwise_and.reduce(is_signal, axis=0)
             edge_labels = torch.from_numpy(edge_labels).float()
 
-            jet_pdg = evts.get_signal_pcl()
+            jet_pdg = evts.get_ue_pcls('signal_pcl', strict=False)
 
             # RETURN GRAPH
             return Data(x=pmu, edge_index=edge_idx, edge_attr=edge_weight,
