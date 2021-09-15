@@ -28,26 +28,52 @@ class EventLoader:
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.__buffer.close()
 
-    # process level interface
-    def __fmt_pdg_meta(self, key):
-        meta = self._meta[key]
-        str_to_set = lambda s: set(int(pdg) for pdg in s.split('|'))
-        if isinstance(meta, str):
-            return str_to_set(meta)
+    # # process level interface
+    # def __fmt_pdg_meta(self, key):
+    #     meta = self._meta[key]
+    #     str_to_set = lambda s: set(int(pdg) for pdg in s.split('|'))
+    #     if isinstance(meta, str):
+    #         return str_to_set(meta)
+    #     else:
+    #         pdg_ids = list()
+    #         for pdg_str in meta:
+    #             pdg_ids.append(str_to_set(pdg_str))
+    #     return pdg_ids
+
+    def get_ue_pcls(self, key, strict=True):
+        """Returns the pdg(s) of the particles in the underlying event.
+        Keyword arguments:
+            key (str) -- possible values:
+                - in_pcls:
+                      the incoming particles, eg. p p, or e+ e-
+                - out_pcls:
+                      the (final) outgoing particles
+                - signal_pcl:
+                      the outgoing particle generating the signal jet
+            strict (bool) -- if set to False, will return NoneType
+                and issue a warning when data not found, instead of
+                throwing an error
+        Output:
+            pcls (list of ints)
+        """
+        try:
+            ids = self._meta[key]
+        except KeyError:
+            msg = f"Metadata with key {key} not found in {self.path}."
+            if strict:
+                print(msg)
+                print("Aborting!")
+                raise
+            else:
+                print(msg)
+                print("Returning NoneType.")
+                return None
+
+        if hasattr(ids, '__iter__'):
+            ids = [int(i) for i in ids]
         else:
-            pdg_ids = list()
-            for pdg_str in meta:
-                pdg_ids.append(str_to_set(pdg_str))
-        return pdg_ids
-
-    def get_in_pcls(self, key='in_pcls'):
-        return self.__fmt_pdg_meta(key)
-
-    def get_out_pcls(self, key='out_pcls'):
-        return self.__fmt_pdg_meta(key)
-
-    def get_signal_pcl(self, key='signal_pcl'):
-        return self.__fmt_pdg_meta(key)
+            ids = int(ids)
+        return ids
 
     def get_unit(self):
         return self._meta['unit']
