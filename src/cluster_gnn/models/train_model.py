@@ -34,6 +34,7 @@ def train_model(config):
         splits=SETTINGS['data']['splits'],
         batch_size=int(SETTINGS['data']['batch_size']),
         edge_weight=bool(SETTINGS['data']['edge_weight']),
+        use_charge=bool(SETTINGS['data']['pcl_props']['charge']),
         num_workers=int(SETTINGS['device']['num_workers']),
         knn=int(SETTINGS['data']['knn']),
         )
@@ -47,6 +48,7 @@ def train_model(config):
         learn_rate=float(SETTINGS['optim']['learn_rate']),
         weight_decay=float(SETTINGS['optim']['weight_decay']),
         pos_weight=float(SETTINGS['loss']['pos_weight']),
+        use_charge=bool(SETTINGS['data']['pcl_props']['charge']),
         )
     trainer_kwargs = dict(
         gpus=int(SETTINGS['device']['num_gpus']),

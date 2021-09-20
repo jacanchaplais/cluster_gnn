@@ -11,6 +11,7 @@ import scipy.sparse as sps
 from cluster_gnn import ROOT_DIR
 from cluster_gnn.features import build_features as bf
 from cluster_gnn.data import internal as DataParser
+from cluster_gnn.data import pdg
 
 # TODO: add processing, download, maybe env var for data dir
 class EventDataset(Dataset):
@@ -18,6 +19,7 @@ class EventDataset(Dataset):
                  data_dir: str = ROOT_DIR + '/data/',
                  data_key: str = 'wboson',
                  knn: int = 0,
+                 use_charge: bool = False,
                  edge_weight: bool = False,
                  transform=None,
                  pre_transform=None):
@@ -25,11 +27,14 @@ class EventDataset(Dataset):
         self.root_dir = data_dir
         self.key = data_key
         self.knn = knn
+        self.use_charge = use_charge
         self.edge_weight = edge_weight
         print(self.root_dir)
         with DataParser.EventLoader(
                 self.root_dir + '/processed/events.hdf5', self.key) as evts:
             self.length = len(evts)
+
+        self.__lookup = pdg.LookupPDG()
 
     @property
     def raw_file_names(self):
@@ -65,25 +70,36 @@ class EventDataset(Dataset):
             evts.set_evt(idx)
             num_nodes = evts.get_num_pcls()
             pmu = evts.get_pmu()
+            pdg = evts.get_pdg()
+            is_signal = evts.get_signal()
+            
+            # FORMAT DATA
             edge_idx, edge_weight = self._get_edges(pmu)
             if not self.edge_weight:
                 edge_weight = None
             pmu = torch.from_numpy(pmu)
-            pdg = torch.from_numpy(evts.get_pdg()) # PDG for posterity
+
+            if self.use_charge == True:
+                charge = self.__lookup.get_charge(pdg)
+                charge = torch.tensor(charge).reshape(-1, 1)
+                feat_vec = torch.cat([charge, pmu], dim=1)
+                tot_charge = charge[is_signal].sum()
+            elif self.use_charge == False:
+                feat_vec = pmu
+                tot_charge = torch.tensor(np.nan)
             
-            # CONSTRUCT EDGE LABELS:
-            is_signal = evts.get_signal()
+            pdg = torch.from_numpy(pdg) # PDG for posterity
+
+            # CONSTRUCT LABELS:
             # node pairs bool labelled for all edges
-            is_signal = is_signal[edge_idx]
+            is_signal_pair = is_signal[edge_idx]
             # reduce => True if both nodes True
-            edge_labels = np.bitwise_and.reduce(is_signal, axis=0)
+            edge_labels = np.bitwise_and.reduce(is_signal_pair, axis=0)
             edge_labels = torch.from_numpy(edge_labels).float()
 
-            jet_pdg = evts.get_ue_pcls('signal_pcl', strict=False)
-
             # RETURN GRAPH
-            return Data(x=pmu, edge_index=edge_idx, edge_attr=edge_weight,
-                        y=edge_labels, pdg=pdg, jet_pdg=jet_pdg)
+            return Data(x=feat_vec, edge_index=edge_idx, edge_attr=edge_weight,
+                        y=edge_labels, tot_charge=tot_charge, pdg=pdg)
 
 class GraphDataModule(pl.LightningDataModule):
     def __init__(self,
@@ -91,13 +107,16 @@ class GraphDataModule(pl.LightningDataModule):
                  splits = {'train': 0.9, 'val': 0.05, 'test': 0.05},
                  batch_size: int = 1,
                  num_workers: int = 1,
+                 knn: int = 0,
+                 use_charge: bool = False,
                  edge_weight: bool = False,
-                 knn: int = 0):
+                 ):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.knn = knn
+        self.use_charge = use_charge
         self.edge_weight = edge_weight
         if sum(splits.values()) <= 1.0:
             self.splits = splits
@@ -111,6 +130,7 @@ class GraphDataModule(pl.LightningDataModule):
         graph_set = EventDataset(
             data_dir=self.data_dir,
             knn=self.knn,
+            use_charge = self.use_charge,
             edge_weight=self.edge_weight)
         num_graphs = graph_set.len()
         start_idx = 0

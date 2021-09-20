@@ -3,7 +3,7 @@
 #SBATCH --account=ecsstaff
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=16
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:4
 #SBATCH --time=01:00:00
 #SBATCH --job-name=ignn
 #SBATCH --output=log/%x-%j.out

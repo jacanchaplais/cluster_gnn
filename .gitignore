@@ -100,3 +100,5 @@ Session.vim
 
 /configs/*/**
 !/configs/**/default.yml
+
+!/data/external/pcl.csv

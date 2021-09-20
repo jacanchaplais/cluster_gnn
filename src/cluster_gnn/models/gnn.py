@@ -44,22 +44,28 @@ class Interaction(pyg.nn.MessagePassing):
 
 
 class Net(pl.LightningModule):
-    def __init__(self, dim_node: int = 4, dim_edge: int = 0,
+    def __init__(self,
                  dim_embed_edge: int = 64, dim_embed_node: int = 64,
                  dim1_node: int = 0, dim1_edge: int = 0,
                  num_hidden: int = 7, final_bias: bool = True,
                  pos_weight: float = 4.5,
                  learn_rate: float = 1.0e-4,
                  weight_decay: float = 3.0e-5,
-                 infer_thresh: float = 0.5):
+                 infer_thresh: float = 0.5,
+                 use_charge: bool = False):
         super(Net, self).__init__()
-        # define the architecture
-        self.dim_node = dim_node
-        self.dim_edge = dim_edge
+        # --- ARCHITECTURE DEFINITION --- #
+        # input and embedding dimensions
+        pmu_dim = 4
+        charge_dim = 1
+        self.dim_node = pmu_dim
+        if use_charge:
+            self.dim_node += charge_dim
+        self.dim_edge = 0
         self.dim_embed_node = dim_embed_node
         self.dim_embed_edge = dim_embed_edge
-        self.__expand = lambda inp: list(chain.from_iterable(inp))
-
+        self.use_charge = use_charge
+        # lookup dict for dims during automated network construction
         self.dims = { # True if in first layer
             'edge': {
                 True: dim1_edge,
@@ -70,9 +76,12 @@ class Net(pl.LightningModule):
                 False: self.dim_embed_node + self.dim_node,
                 }
             }
-
+        # removes nesting of tiled tuples, so all elems adjacent:
+        self.__expand = lambda inp: list(chain.from_iterable(inp))
+        # concats node features:
         self.__cat = lambda x1, x2: torch.cat([x1, x2], dim=1)
-
+        # automated model construction:
+        # TODO: make this more verbose to improve readability
         self.model = pyg.nn.Sequential('x_init, edge_index, edge_attrs',
             [( # encoder
                 Interaction(
@@ -91,15 +100,19 @@ class Net(pl.LightningModule):
                 'x_in, edge_index, edge_attrs -> edge_attrs, x')
                 ) for i in range(num_hidden)])
             )
-
+        # final layer w/o activation, identifying true and false edges
         self.classify = torch.nn.Linear(dim_embed_edge, 1, bias=final_bias)
+
+        # --- OPTIMISATION --- #
         # optimiser args
+        self.infer_thresh = infer_thresh
         self.lr = learn_rate
         self.decay = weight_decay
         # configure the loss
-        self.criterion = torch.nn.BCEWithLogitsLoss(
+        self.bceloss = torch.nn.BCEWithLogitsLoss(
                 pos_weight=torch.tensor(pos_weight, device=self.device),
                 reduction='mean')
+        self.l1loss = torch.nn.L1Loss()
         # METRICS:
         # train
         self.train_ACC = torchmetrics.Accuracy(threshold=infer_thresh)
@@ -117,14 +130,35 @@ class Net(pl.LightningModule):
         self.test_ROC = torchmetrics.ROC(compute_on_step=False)
         self.test_AUC = torchmetrics.AUROC()
 
+        if self.use_charge:
+            self.train_charge_MAE = torchmetrics.MeanAbsoluteError()
+            self.val_charge_MAE = torchmetrics.MeanAbsoluteError()
+
+    def __node_idx_from_edge(self, edge_idxs, edge_attrs, pre_act):
+        if pre_act == False:
+            edge_attrs = torch.sigmoid(edge_attrs)
+        mask = edge_attrs.ge(self.infer_thresh).reshape(-1)
+        node_idxs = torch.masked_select(edge_idxs, mask).unique()
+        return node_idxs
+
     def forward(self, data, sigmoid=True):
-        node_attrs, edge_attrs = data.x, data.edge_attr
-        edge_attrs, node_attrs = self.model(node_attrs, data.edge_index,
-                                            edge_attrs)
-        pred = self.classify(edge_attrs)
-        if sigmoid:
-            pred = torch.sigmoid(pred)
-        return pred
+        # collecting the graph data
+        node_attrs, edge_attrs, edge_idxs = (
+                data.x, data.edge_attr, data.edge_index)
+        # running it through the GNN
+        edge_attrs, node_attrs = self.model(node_attrs, edge_idxs, edge_attrs)
+        edge_pred = self.classify(edge_attrs)
+        if sigmoid: # apply activation to predictions
+            edge_pred = torch.sigmoid(edge_pred)
+        if self.use_charge: # reconstruct charge of cluster
+            node_idxs = self.__node_idx_from_edge(
+                    edge_idxs=edge_idxs, edge_attrs=edge_pred, pre_act=sigmoid)
+            # TODO: make more general than putting charge in 1st column
+            charges = data.x[node_idxs, 0]
+            charge_pred = charges.sum().unsqueeze(-1)
+            return edge_pred, charge_pred
+        else:
+            return edge_pred
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -141,43 +175,81 @@ class Net(pl.LightningModule):
         return torch.stack(losses).mean()
 
     def training_step(self, batch, batch_idx):
-        edge_pred = self(batch, sigmoid=False)
-        loss = self.criterion(edge_pred, batch.y.view(-1, 1))
-        return {'loss': loss,
-                'preds': torch.sigmoid(edge_pred),
-                'target': batch.y.view(-1, 1).int()}
+        preds = self(batch, sigmoid=False)
+        outputs = dict()
+        if self.use_charge:
+            edge_pred, charge_pred = preds
+            loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
+            loss += self.l1loss(charge_pred, batch.tot_charge)
+            outputs.update({
+                'charge_pred': charge_pred,
+                'charge_target': batch.tot_charge,
+                })
+        else:
+            edge_pred = preds
+            loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
+        outputs.update({
+            'loss': loss,
+            'edge_pred': torch.sigmoid(edge_pred),
+            'edge_target': batch.y.view(-1, 1).int()})
+        return outputs
 
     def training_step_end(self, outputs):
-        self.train_ACC(outputs['preds'], outputs['target'])
-        self.train_F1(outputs['preds'], outputs['target'])
+        self.train_ACC(outputs['edge_pred'], outputs['edge_target'])
+        self.train_F1(outputs['edge_pred'], outputs['edge_target'])
         self.log('ptl/train_loss', outputs['loss'], on_step=True)
+        if self.use_charge:
+            self.train_charge_MAE(
+                    outputs['charge_pred'], outputs['charge_target'])
         return outputs['loss']
 
     def training_epoch_end(self, outputs):
         self.log('ptl/train_loss', self._train_av_loss(outputs))
-        self.log('ptl/train_accuracy', self.train_ACC.compute())
+        self.log('ptl/train_edge_accuracy', self.train_ACC.compute())
         self.log('ptl/train_f', self.train_F1.compute())
+        if self.use_charge:
+            self.log('ptl/train_charge_mae', self.train_charge_MAE.compute())
 
     def validation_step(self, batch, batch_idx):
-        edge_pred = self(batch, sigmoid=False)
-        loss = self.criterion(edge_pred, batch.y.view(-1, 1))
-        return {'loss': loss,
-                'preds': torch.sigmoid(edge_pred),
-                'target': batch.y.view(-1, 1).int()}
+        preds = self(batch, sigmoid=False)
+        outputs = dict()
+        if self.use_charge:
+            edge_pred, charge_pred = preds
+            loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
+            loss += self.l1loss(charge_pred, batch.tot_charge)
+            outputs.update({
+                'charge_pred': charge_pred,
+                'charge_target': batch.tot_charge,
+                })
+        else:
+            edge_pred = preds
+            loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
+        outputs.update({
+            'loss': loss,
+            'edge_pred': torch.sigmoid(edge_pred),
+            'edge_target': batch.y.view(-1, 1).int()})
+        return outputs
 
     def validation_step_end(self, outputs):
-        self.val_ACC(outputs['preds'], outputs['target'])
-        self.val_F1(outputs['preds'], outputs['target'])
-        self.val_PR(outputs['preds'], outputs['target'])
+        self.val_ACC(outputs['edge_pred'], outputs['edge_target'])
+        self.val_F1(outputs['edge_pred'], outputs['edge_target'])
+        self.val_PR(outputs['edge_pred'], outputs['edge_target'])
         self.log('ptl/val_loss', outputs['loss'], on_step=True)
+        if self.use_charge:
+            self.val_charge_MAE(
+                    outputs['charge_pred'], outputs['charge_target'])
         return outputs['loss']
 
     def validation_epoch_end(self, outputs):
         metrics = {
             'ptl/val_loss': self._val_av_loss(outputs),
-            'ptl/val_accuracy': self.val_ACC.compute(),
+            'ptl/val_edge_accuracy': self.val_ACC.compute(),
             'ptl/val_f': self.val_F1.compute(),
             }
+        if self.use_charge:
+            metrics.update({
+                'ptl/val_charge_mae': self.val_charge_MAE.compute(),
+                })
         self.log_dict(metrics, sync_dist=True)
         prec, recall, thresh = self.val_PR.compute()
         for i, t in enumerate(thresh):
@@ -185,8 +257,14 @@ class Net(pl.LightningModule):
             self.log(f'ptl/val_recall_thresh_{t:.3f}', recall[i])
 
     def test_step(self, batch, batch_idx):
-        edge_pred = self(batch, sigmoid=False)
-        loss = self.criterion(edge_pred, batch.y.view(-1, 1))
+        preds = self(batch, sigmoid=False)
+        if self.use_charge:
+            edge_pred, charge_pred = preds
+            loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
+            loss += self.l1loss(charge_pred, batch.tot_charge)
+        else:
+            edge_pred = preds
+            loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
         preds = torch.sigmoid(edge_pred)
         target = batch.y.view(-1, 1).int()
         self.test_ROC(preds, target)
