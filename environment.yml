@@ -36,3 +36,5 @@ dependencies:
   - zenodo_get # downloading public datasets
   - pyyaml
   - gitpython
+  - particle
+  - vector
