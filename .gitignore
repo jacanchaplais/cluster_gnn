@@ -76,8 +76,8 @@ target/
 .ipynb_checkpoints/
 
 # exclude data from source control by default
-/data/
-/data
+/data/**
+!/data/data.xml.dvc
 
 # Mac OS-specific storage files
 .DS_Store
@@ -101,4 +101,3 @@ Session.vim
 /configs/*/**
 !/configs/**/default.yml
 
-!/data/external/pcl.csv
