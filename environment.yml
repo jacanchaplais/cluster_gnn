@@ -10,6 +10,7 @@ dependencies:
   - pip
   - python=3.8 # version for PyTorch Geometric compatibility
   - dvc
+  - dvc-gdrive
   - tqdm # provides progress bars to Python loops
   - jupyter
   - pytorch=1.7 # version for cluster compatibility
