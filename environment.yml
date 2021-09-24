@@ -9,6 +9,7 @@ dependencies:
   - cudatoolkit=10.2 # version for cluster compatibility
   - pip
   - python=3.8 # version for PyTorch Geometric compatibility
+  - dvc
   - tqdm # provides progress bars to Python loops
   - jupyter
   - pytorch=1.7 # version for cluster compatibility
