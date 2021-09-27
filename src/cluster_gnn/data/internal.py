@@ -102,5 +102,5 @@ class EventLoader:
 
     def set_evt(self, evt_num):
         self.__evt_iter = None
-        grp_key = f'event_{evt_num:06}'
+        grp_key = f'event_{evt_num:09}'
         self.__grp = self.__buffer[self.key][grp_key]
