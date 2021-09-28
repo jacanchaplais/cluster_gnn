@@ -152,7 +152,7 @@ class Net(pl.LightningModule):
             # TODO: make more general than putting charge in 1st column
             charges = data.x[:, 0]
             weights = self.max_in_edge(edge_idxs, edge_pred)
-            weights = weights.type_as(charges)
+            weights = weights.type_as(charges) # put on GPU
             charge_pred = torch.mul(weights, charges).sum().unsqueeze(-1)
             return edge_pred, charge_pred
         else:
