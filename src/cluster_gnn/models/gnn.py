@@ -134,12 +134,10 @@ class Net(pl.LightningModule):
             self.train_charge_MAE = torchmetrics.MeanAbsoluteError()
             self.val_charge_MAE = torchmetrics.MeanAbsoluteError()
 
-    def __node_idx_from_edge(self, edge_idxs, edge_attrs, pre_act):
-        if pre_act == False:
-            edge_attrs = torch.sigmoid(edge_attrs)
-        mask = edge_attrs.ge(self.infer_thresh).reshape(-1)
-        node_idxs = torch.masked_select(edge_idxs, mask).unique()
-        return node_idxs
+    def max_in_edge(self, edge_idx, edge_weight):
+        sps_edge = torch.sparse.DoubleTensor(edge_idx, edge_weight)
+        max_weight, _ = torch.max(sps_edge.to_dense(), dim=0)
+        return max_weight
 
     def forward(self, data, sigmoid=True):
         # collecting the graph data
@@ -151,11 +149,11 @@ class Net(pl.LightningModule):
         if sigmoid: # apply activation to predictions
             edge_pred = torch.sigmoid(edge_pred)
         if self.use_charge: # reconstruct charge of cluster
-            node_idxs = self.__node_idx_from_edge(
-                    edge_idxs=edge_idxs, edge_attrs=edge_pred, pre_act=sigmoid)
             # TODO: make more general than putting charge in 1st column
-            charges = data.x[node_idxs, 0]
-            charge_pred = charges.sum().unsqueeze(-1)
+            charges = data.x[:, 0]
+            weights = self.max_in_edge(edge_idxs, edge_pred)
+            charge_pred = torch.mul(weights, charges).sum().unsqueeze(-1)
+            charge_pred = charge_pred.type_as(charges)
             return edge_pred, charge_pred
         else:
             return edge_pred
