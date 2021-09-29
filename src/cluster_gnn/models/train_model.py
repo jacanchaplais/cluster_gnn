@@ -49,6 +49,7 @@ def train_model(config):
         weight_decay=float(SETTINGS['optim']['weight_decay']),
         pos_weight=float(SETTINGS['loss']['pos_weight']),
         use_charge=bool(SETTINGS['data']['pcl_props']['charge']),
+        charge_epoch=int(SETTINGS['data']['pcl_props']['charge_epoch']),
         )
     trainer_kwargs = dict(
         gpus=int(SETTINGS['device']['num_gpus']),

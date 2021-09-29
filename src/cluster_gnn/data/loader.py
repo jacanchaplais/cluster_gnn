@@ -29,7 +29,6 @@ class EventDataset(Dataset):
         self.knn = knn
         self.use_charge = use_charge
         self.edge_weight = edge_weight
-        print(self.root_dir)
         with DataParser.EventLoader(
                 self.root_dir + '/processed/events.hdf5', self.key) as evts:
             self.length = len(evts)

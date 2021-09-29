@@ -17,6 +17,7 @@ data:
     val: 0.05
   pcl_props:
     charge: false
+    charge_epoch: 0 # when to include charge reconstruction in loss
 
 arch:
   num_hidden: 7

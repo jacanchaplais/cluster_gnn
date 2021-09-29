@@ -52,7 +52,8 @@ class Net(pl.LightningModule):
                  learn_rate: float = 1.0e-4,
                  weight_decay: float = 3.0e-5,
                  infer_thresh: float = 0.5,
-                 use_charge: bool = False):
+                 use_charge: bool = False,
+                 charge_epoch: int = 0):
         super(Net, self).__init__()
         # --- ARCHITECTURE DEFINITION --- #
         # input and embedding dimensions
@@ -65,6 +66,8 @@ class Net(pl.LightningModule):
         self.dim_embed_node = dim_embed_node
         self.dim_embed_edge = dim_embed_edge
         self.use_charge = use_charge
+        self.charge_epoch = charge_epoch
+        self.charge_weight = 0.1
         # lookup dict for dims during automated network construction
         self.dims = { # True if in first layer
             'edge': {
@@ -140,6 +143,8 @@ class Net(pl.LightningModule):
         return max_weight
 
     def forward(self, data, sigmoid=True):
+        print(f'epoch is {self.current_epoch}')
+        print(f'charge epoch is {self.charge_epoch}')
         # collecting the graph data
         node_attrs, edge_attrs, edge_idxs = (
                 data.x, data.edge_attr, data.edge_index)
@@ -148,7 +153,7 @@ class Net(pl.LightningModule):
         edge_pred = self.classify(edge_attrs)
         if sigmoid: # apply activation to predictions
             edge_pred = torch.sigmoid(edge_pred)
-        if self.use_charge: # reconstruct charge of cluster
+        if self.use_charge and self.current_epoch >= self.charge_epoch:
             # TODO: make more general than putting charge in 1st column
             charges = data.x[:, 0]
             weights = self.max_in_edge(edge_idxs, edge_pred)
@@ -175,10 +180,11 @@ class Net(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         preds = self(batch, sigmoid=False)
         outputs = dict()
-        if self.use_charge:
+        if self.use_charge and self.current_epoch >= self.charge_epoch:
             edge_pred, charge_pred = preds
             loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
-            loss += self.l1loss(charge_pred, batch.tot_charge)
+            loss += self.charge_weight * self.l1loss(charge_pred,
+                                                     batch.tot_charge)
             outputs.update({
                 'charge_pred': charge_pred,
                 'charge_target': batch.tot_charge,
@@ -196,7 +202,7 @@ class Net(pl.LightningModule):
         self.train_ACC(outputs['edge_pred'], outputs['edge_target'])
         self.train_F1(outputs['edge_pred'], outputs['edge_target'])
         self.log('ptl/train_loss', outputs['loss'], on_step=True)
-        if self.use_charge:
+        if self.use_charge and self.current_epoch >= self.charge_epoch:
             self.train_charge_MAE(
                     outputs['charge_pred'], outputs['charge_target'])
         return outputs['loss']
@@ -205,16 +211,17 @@ class Net(pl.LightningModule):
         self.log('ptl/train_loss', self._train_av_loss(outputs))
         self.log('ptl/train_edge_accuracy', self.train_ACC.compute())
         self.log('ptl/train_f', self.train_F1.compute())
-        if self.use_charge:
+        if self.use_charge and self.current_epoch >= self.charge_epoch:
             self.log('ptl/train_charge_mae', self.train_charge_MAE.compute())
 
     def validation_step(self, batch, batch_idx):
         preds = self(batch, sigmoid=False)
         outputs = dict()
-        if self.use_charge:
+        if self.use_charge and self.current_epoch >= self.charge_epoch:
             edge_pred, charge_pred = preds
             loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
-            loss += self.l1loss(charge_pred, batch.tot_charge)
+            loss += self.charge_weight * self.l1loss(charge_pred,
+                                                     batch.tot_charge)
             outputs.update({
                 'charge_pred': charge_pred,
                 'charge_target': batch.tot_charge,
@@ -233,7 +240,7 @@ class Net(pl.LightningModule):
         self.val_F1(outputs['edge_pred'], outputs['edge_target'])
         self.val_PR(outputs['edge_pred'], outputs['edge_target'])
         self.log('ptl/val_loss', outputs['loss'], on_step=True)
-        if self.use_charge:
+        if self.use_charge and self.current_epoch >= self.charge_epoch:
             self.val_charge_MAE(
                     outputs['charge_pred'], outputs['charge_target'])
         return outputs['loss']
@@ -244,7 +251,7 @@ class Net(pl.LightningModule):
             'ptl/val_edge_accuracy': self.val_ACC.compute(),
             'ptl/val_f': self.val_F1.compute(),
             }
-        if self.use_charge:
+        if self.use_charge and self.current_epoch >= self.charge_epoch:
             metrics.update({
                 'ptl/val_charge_mae': self.val_charge_MAE.compute(),
                 })
@@ -256,10 +263,11 @@ class Net(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         preds = self(batch, sigmoid=False)
-        if self.use_charge:
+        if self.use_charge and self.current_epoch >= self.charge_epoch:
             edge_pred, charge_pred = preds
             loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
-            loss += self.l1loss(charge_pred, batch.tot_charge)
+            loss += self.charge_weight * self.l1loss(charge_pred,
+                                                     batch.tot_charge)
         else:
             edge_pred = preds
             loss = self.bceloss(edge_pred, batch.y.view(-1, 1))
