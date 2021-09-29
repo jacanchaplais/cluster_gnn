@@ -143,8 +143,6 @@ class Net(pl.LightningModule):
         return max_weight
 
     def forward(self, data, sigmoid=True):
-        print(f'epoch is {self.current_epoch}')
-        print(f'charge epoch is {self.charge_epoch}')
         # collecting the graph data
         node_attrs, edge_attrs, edge_idxs = (
                 data.x, data.edge_attr, data.edge_index)
