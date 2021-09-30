@@ -9,8 +9,6 @@ dependencies:
   - cudatoolkit=10.2 # version for cluster compatibility
   - pip
   - python=3.8 # version for PyTorch Geometric compatibility
-  - dvc
-  - dvc-gdrive
   - tqdm # provides progress bars to Python loops
   - jupyter
   - pytorch=1.7 # version for cluster compatibility
@@ -40,3 +38,5 @@ dependencies:
   - gitpython
   - particle
   - vector
+  - pip:
+    - git+https://github.com/jacanchaplais/heparchy.git#egg=heparchy
