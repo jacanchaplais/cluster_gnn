@@ -40,3 +40,4 @@ dependencies:
   - vector
   - pip:
     - git+https://github.com/jacanchaplais/heparchy.git#egg=heparchy
+    - git+https://github.com/jacanchaplais/phenograph.git#egg=phenograph

@@ -7,10 +7,10 @@ import pytorch_lightning as pl
 import numpy as np
 from numba import jit
 import scipy.sparse as sps
+from heparchy.read import EventLoader
+import phenograph.matrices as mat
 
 from cluster_gnn import ROOT_DIR
-from cluster_gnn.features import build_features as bf
-from cluster_gnn.data import internal as DataParser
 from cluster_gnn.data import pdg
 
 # TODO: add processing, download, maybe env var for data dir
@@ -29,7 +29,7 @@ class EventDataset(Dataset):
         self.knn = knn
         self.use_charge = use_charge
         self.edge_weight = edge_weight
-        with DataParser.EventLoader(
+        with EventLoader(
                 self.root_dir + '/processed/events.hdf5', self.key) as evts:
             self.length = len(evts)
 
@@ -54,16 +54,17 @@ class EventDataset(Dataset):
         type: (2, num_nodes * (num_nodes - 1)) dim array
         """
         dtype = np.float64
+        aff = mat.AffinityMatrix(pmu)
         if self.knn == 0:
-            adj = bf.fc_adj(num_nodes=len(pmu), dtype=dtype)
+            adj = mat.fc_adj(num_nodes=len(pmu), dtype=dtype)
         else:
-            adj = bf.knn_adj(bf.deltaR_aff(pmu), k=self.knn, dtype=dtype,
-                             weighted=self.edge_weight)
+            adj = mat.knn_adj(matrix=aff.delta_R(), k=self.knn, dtype=dtype,
+                              weighted=self.edge_weight)
         edge_idx = sps_to_edge(sps.coo_matrix(adj)) # to coo formatted edges
         return edge_idx
     
     def get(self, idx):
-        with DataParser.EventLoader(
+        with EventLoader(
                 self.root_dir + '/processed/events.hdf5', self.key) as evts:
             # LOAD DATA:
             evts.set_evt(idx)

@@ -1,4 +1,0 @@
-outs:
-- md5: 1c49c1a22f7628223487d82d16410d8d
-  size: 877123
-  path: events_w.hdf5
